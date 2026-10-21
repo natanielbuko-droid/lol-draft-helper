@@ -78,6 +78,8 @@ export interface PickRecommendation {
   image: string;
   score: ScoreBreakdown;
   reasons: string[];
+  /** Porównanie z pozostałymi propozycjami: dlaczego ta postać jest wyżej/niżej i w czym się wyróżnia. */
+  comparison: string[];
 }
 
 export interface ItemRef {
@@ -173,6 +175,8 @@ export interface AppState {
   patch: string; // wersja Data Dragon, np. 16.21.1
   statsPatch: string | null; // patch, z którego pochodzą statystyki
   statsMatches: number;
+  /** Rangi graczy, z których meczów pochodzą statystyki, np. ["MASTER", "GRANDMASTER"]. */
+  statsTiers: string[] | null;
   draft: DraftState | null;
   picks: PickRecommendation[];
   build: BuildRecommendation | null;

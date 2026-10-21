@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { ChampionProfile } from "../src/shared/types";
+import type { ChampionProfile, PickRecommendation } from "../src/shared/types";
 import { parseItemStats, type CatalogItem } from "../src/server/data/itemCatalog";
 import { smoothedWinrate } from "../src/server/data/statsStore";
 import { situationalItems, skillLevels } from "../src/server/engine/buildEngine";
-import { compositionScore } from "../src/server/engine/pickEngine";
+import { compareWithOthers, compositionScore } from "../src/server/engine/pickEngine";
 import { analyzeTeam } from "../src/server/engine/teamAnalysis";
 import { parseSession } from "../src/server/lcu/champSelect";
 
@@ -99,4 +99,21 @@ test("kolejność umiejętności rozpisana na poziomy 1–18 według zasad gry",
   const levels = skillLevels(["E", "Q", "W"]);
   assert.equal(levels.filter((s) => s === "R").length, 3);
   for (const s of ["Q", "W", "E"]) assert.equal(levels.filter((x) => x === s).length, 5);
+});
+
+test("porównanie z innymi propozycjami wyjaśnia przewagę #1 i mocne strony pozostałych", () => {
+  const pick = (name: string, total: number, s: Partial<PickRecommendation["score"]>): PickRecommendation => ({
+    championId: nextId++, name, image: "", reasons: [], comparison: [],
+    score: { meta: 0, counter: 0, synergy: 0, composition: 0, total, confidence: 1, games: 100, winrate: 0.5, pickRate: 0.02, ...s },
+  });
+  const picks = [
+    pick("A", 66, { meta: 0.8, counter: 0.1, winrate: 0.55, pickRate: 0.06 }),
+    pick("B", 60, { meta: 0.2, counter: 0.6, winrate: 0.5 }),
+    pick("C", 55, { meta: 0.1, counter: 0.0, winrate: 0.49 }),
+  ];
+  compareWithOthers(picks);
+  assert.ok(picks[0].comparison.some((c) => c.startsWith("Przewaga nad B") && c.includes("siła na patchu")));
+  assert.ok(picks[0].comparison.some((c) => c.startsWith("Wygrywa częściej niż pozostałe")));
+  assert.ok(picks[0].comparison.length <= 3, "najwyżej 3 zdania porównania na postać");
+  assert.ok(picks[1].comparison.some((c) => c.includes("Lepsza niż A") && c.includes("radzenie sobie z wybranymi wrogami")));
 });

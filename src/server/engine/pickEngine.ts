@@ -132,7 +132,8 @@ export function scoreChampion(c: ChampionProfile, ctx: PickContext, stats: Stats
     const sameLane = ctx.enemyPositions.get(e.id) === ctx.position;
     const wl = (sameLane ? stats.lane(c.id, ctx.position, e.id) : undefined) ?? stats.vs(c.id, e.id);
     if (!wl) continue;
-    const delta = smoothedWinrate(wl, 40) - baseWr;
+    // Wygładzamy w stronę własnego winrate postaci (nie 50%): mała próbka = brak efektu, a nie fałszywy plus/minus.
+    const delta = smoothedWinrate(wl, 40, baseWr) - baseWr;
     const w = sameLane ? 2 : 1;
     counterSum += delta * w;
     counterW += w;
@@ -148,7 +149,7 @@ export function scoreChampion(c: ChampionProfile, ctx: PickContext, stats: Stats
   for (const a of ctx.allies) {
     const wl = stats.with(c.id, a.id);
     if (!wl) continue;
-    const delta = smoothedWinrate(wl, 40) - baseWr;
+    const delta = smoothedWinrate(wl, 40, baseWr) - baseWr; // jak wyżej: w stronę własnego winrate postaci
     synSum += delta;
     synN++;
     if (delta >= 0.02) reasons.push(`Dobrze współgra z ${a.name} – wygrywa o ${pct(delta)} częściej`);
@@ -229,11 +230,72 @@ export function recommendPicks(draft: DraftState, data: GameData, stats: StatsSt
   // Mała próbka meczów (np. pierwszy crawl) = za mało postaci ze statystykami -> dokładamy pulę z heurystyki.
   const pool = byStats.length >= 15 ? byStats : [...new Set([...byStats, ...byClass])];
 
-  return pool
-    .map((c) => {
+  const picks = pool
+    .map((c): PickRecommendation => {
       const { score, reasons } = scoreChampion(c, ctx, stats);
-      return { championId: c.id, name: c.name, image: c.image, score, reasons };
+      return { championId: c.id, name: c.name, image: c.image, score, reasons, comparison: [] };
     })
     .sort((a, b) => b.score.total - a.score.total || b.score.confidence - a.score.confidence)
     .slice(0, limit);
+  compareWithOthers(picks);
+  return picks;
+}
+
+type Component = "meta" | "counter" | "synergy" | "composition";
+const COMPONENTS: Component[] = ["meta", "counter", "synergy", "composition"];
+const COMPONENT_LABEL: Record<Component, string> = {
+  meta: "siła na patchu",
+  counter: "radzenie sobie z wybranymi wrogami",
+  synergy: "współpraca z Twoją drużyną",
+  composition: "dopasowanie do składu",
+};
+
+/**
+ * Wyjaśnia każdą propozycję NA TLE pozostałych z listy – żeby gracz wiedział nie tylko,
+ * że postać jest dobra, ale dlaczego lepsza (albo w czym gorsza) od innych opcji.
+ */
+export function compareWithOthers(picks: PickRecommendation[]): void {
+  if (picks.length < 2) return;
+  const mean = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
+
+  picks.forEach((p, i) => {
+    const others = picks.filter((o) => o !== p);
+    const out: string[] = [];
+
+    // 1. Pozycja w rankingu: #1 względem #2, pozostali względem #1.
+    if (i === 0) {
+      const next = picks[1];
+      const ahead = COMPONENTS.map((k) => [k, p.score[k] - next.score[k]] as const)
+        .filter(([, d]) => d > 0.1)
+        .sort((a, b) => b[1] - a[1]);
+      if (ahead.length) out.push(`Przewaga nad ${next.name}: ${ahead.slice(0, 2).map(([k]) => COMPONENT_LABEL[k]).join(", ")}.`);
+    } else {
+      const best = picks[0];
+      const better = COMPONENTS.filter((k) => p.score[k] - best.score[k] > 0.1);
+      if (better.length) out.push(`Lepsza niż ${best.name} w kategoriach: ${better.map((k) => COMPONENT_LABEL[k]).join(", ")} – ale w sumie wypada słabiej.`);
+    }
+
+    // 2. Winrate na tle pozostałych propozycji.
+    const otherWr = others.map((o) => o.score.winrate).filter((w): w is number => w !== null);
+    if (p.score.winrate !== null && otherWr.length) {
+      const avg = mean(otherWr);
+      const d = p.score.winrate - avg;
+      if (d >= 0.015) out.push(`Wygrywa częściej niż pozostałe propozycje: ${pct(p.score.winrate)} wobec średnio ${pct(avg)}.`);
+      else if (d <= -0.03) out.push(`Wygrywa rzadziej niż pozostałe propozycje (${pct(p.score.winrate)} wobec średnio ${pct(avg)}) – jest wysoko dzięki innym zaletom.`);
+    }
+
+    // 3. W czym jest najlepsza z całej listy.
+    for (const k of COMPONENTS) {
+      const second = Math.max(...others.map((o) => o.score[k]));
+      if (p.score[k] > 0.2 && p.score[k] - second > 0.1) out.push(`Najlepsza z listy w kategorii: ${COMPONENT_LABEL[k]}.`);
+    }
+
+    // 4. Popularność – najczęściej grana z propozycji.
+    const pr = p.score.pickRate;
+    if (pr !== null && pr > 0 && others.every((o) => (o.score.pickRate ?? 0) < pr)) {
+      out.push(`Najczęściej wybierana z proponowanych postaci (${pct(pr)} gier na tej pozycji).`);
+    }
+
+    p.comparison = out.slice(0, 3);
+  });
 }

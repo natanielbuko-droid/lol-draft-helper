@@ -36,19 +36,25 @@ async function main() {
   cfg.port = choice.port;
 
   const data = new GameData(path.join(cfg.dataDir, "cache"), cfg.displayLocale);
-  const stats = new StatsStore(cfg.dataDir, cfg.statsUrl, path.resolve("seed", "stats.json"));
+  const stats = new StatsStore(cfg.dataDir, cfg.statsUrl, path.resolve("seed", "stats.json.gz"));
   await Promise.all([data.init(), stats.load()]);
   data.startPatchWatcher(cfg.patchCheckMinutes);
 
   const source: DraftSource = cfg.mock ? new MockLcu(data) : new LcuClient(cfg.lolInstallPath);
+
+  /** Skąd pochodzą statystyki – pokazywane w nagłówku aplikacji. */
+  const statsInfo = () => ({
+    statsPatch: stats.hasData ? stats.current.patch : null,
+    statsMatches: stats.current.matches,
+    statsTiers: stats.hasData ? (stats.current.tiers ?? null) : null,
+  });
 
   let lastSession: LcuSession | null = null;
   let state: AppState = {
     connection: "disconnected",
     gameflowPhase: "None",
     patch: data.version,
-    statsPatch: stats.hasData ? stats.current.patch : null,
-    statsMatches: stats.current.matches,
+    ...statsInfo(),
     draft: null,
     picks: [],
     build: null,
@@ -62,6 +68,7 @@ async function main() {
     getState: () => state,
     refreshStats: async () => {
       await stats.load();
+      update(statsInfo()); // nagłówek odświeża się także poza champ selectem
       await recompute();
     },
     applyRunes: async () => {
@@ -91,7 +98,7 @@ async function main() {
     }
     const draft = parseSession(lastSession, await source.getPickableChampionIds());
     const rec = computeRecommendations(draft, data, stats);
-    update({ draft, ...rec, statsPatch: stats.hasData ? stats.current.patch : null, statsMatches: stats.current.matches });
+    update({ draft, ...rec, ...statsInfo() });
   }
 
   source.on("status", (connection) => update({ connection }));

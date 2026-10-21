@@ -129,3 +129,8 @@ dd { margin: 0; }
 .skill-row span { height: 18px; border-radius: 3px; background: #0e151d; font-size: 10px; text-align: center; line-height: 18px; }
 .skill-row span.on { background: var(--ally); color: #fff; font-weight: 700; }
 .skill-row span.on.R { background: var(--gold); color: #111; }
+
+/* Porównanie z pozostałymi propozycjami */
+.comparison { background: rgba(59, 130, 246, .08); border-left: 3px solid var(--ally); border-radius: 4px; padding: 4px 8px; margin: 4px 0; font-size: 12px; }
+.comparison span { color: var(--gold); font-weight: 600; }
+.comparison ul { margin: 2px 0 0; padding-left: 16px; }

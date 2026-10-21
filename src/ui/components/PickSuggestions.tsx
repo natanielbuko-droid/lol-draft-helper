@@ -1,6 +1,9 @@
 import type { PickRecommendation, ScoreBreakdown } from "../../shared/types";
 
 const pct = (x: number) => `${(x * 100).toFixed(1).replace(".", ",")}%`;
+/** Polska odmiana: 1 mecz, 2–4 mecze, 5+ meczów (ale 12–14 meczów). */
+const matches = (n: number) =>
+  `${n} ${n === 1 ? "mecz" : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? "mecze" : "meczów"}`;
 
 /** Słowna ocena zamiast samej liczby. */
 function verdict(total: number): { label: string; cls: string } {
@@ -44,7 +47,7 @@ function Stats({ s }: { s: ScoreBreakdown }) {
   if (s.winrate === null) return <div className="pick-stats muted">Brak meczów w statystykach – ocena na podstawie klasy postaci i składu</div>;
   return (
     <div className="pick-stats">
-      Winrate <b>{pct(s.winrate)}</b> · grana w <b>{pct(s.pickRate ?? 0)}</b> gier na tej pozycji · {s.games} meczów w danych
+      Winrate <b>{pct(s.winrate)}</b> · grana w <b>{pct(s.pickRate ?? 0)}</b> gier na tej pozycji · {matches(s.games)} w danych
     </div>
   );
 }
@@ -90,6 +93,16 @@ export function PickSuggestions({ picks }: { picks: PickRecommendation[] }) {
                   </small>
                 </div>
                 <Stats s={p.score} />
+                {p.comparison.length > 0 && (
+                  <div className="comparison">
+                    <span>Na tle pozostałych propozycji:</span>
+                    <ul>
+                      {p.comparison.map((c) => (
+                        <li key={c}>{c}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 <Breakdown s={p.score} />
                 {p.reasons.length > 0 && (
                   <ul className="reasons">

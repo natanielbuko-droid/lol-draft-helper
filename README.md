@@ -25,8 +25,9 @@ Za pierwszym razem instalacja zależności trwa około minuty. Potem przeglądar
 Aplikację zamykasz, zamykając czarne okno konsoli.
 
 **Co jest w środku:** dane gry (postacie, przedmioty, runy) pobierają się automatycznie z bieżącego patcha.
-Statystyki (winrate, kontry, buildy) są dołączone w `seed/stats.json` – próbka ok. 1000 meczów rankingowych
-z wysokich lig, więc traktuj je jako wskazówkę, a nie wyrocznię (aplikacja pokazuje „pewność” każdej oceny).
+Statystyki (winrate, kontry, buildy) są dołączone w `seed/stats.json.gz` i pochodzą wyłącznie z meczów rankingowych
+graczy z rang **Master i Grandmaster** – liczba meczów jest widoczna w nagłówku aplikacji. Traktuj je jako wskazówkę,
+a nie wyrocznię (aplikacja pokazuje przy każdej ocenie, ile danych za nią stoi).
 
 **Zgłaszając błąd**, opisz co robiłeś i wklej ostatnie linie z okna konsoli.
 
@@ -157,7 +158,7 @@ src/
 Każda postać dostaje cztery składowe w skali **-1…+1**, a wynik końcowy **0…100**:
 
 ```
-SCORE = 50 + 50 × (0.25·META + 0.30·COUNTER + 0.15·SYNERGY + 0.30·COMPOSITION)
+SCORE = 50 + 50 × (0.35·META + 0.25·COUNTER + 0.15·SYNERGY + 0.25·COMPOSITION)
 ```
 
 Bez statystyk (np. przed pierwszym crawlem) wagi zmieniają się na `META 0.3 (dopasowanie klasy do roli) + COMPOSITION 0.7`.
@@ -170,12 +171,15 @@ funkcja RECOMMEND_PICKS(draft):
     sojusznicy ← postacie wybrane/hoverowane przez sojuszników
     wrogowie   ← postacie zablokowane przez wrogów
     pozycje_wrogów ← INFER_POSITIONS(wrogowie)        # 120 permutacji, wybór najbardziej prawdopodobnej
-    pula ← postacie grane na tej pozycji (≥0.4% gier) − bany − już wybrane
+    pula ← postacie grane na tej pozycji (≥0.8% gier) − bany − już wybrane   # odcina picki spoza mety
 
     dla każdej postaci C w puli:
-        base_wr ← WYGŁADZONY_WR(C, pozycja)            # (wygrane + 100·0.5) / (gry + 100)
+        base_wr ← WYGŁADZONY_WR(C, pozycja)            # (wygrane + 150·0.5) / (gry + 150)
+        popularność ← log2(udział_gier_C / średni_udział) / 2
 
-        META    ← (base_wr − 50%) / 4pp                 # +4 pp ponad 50% = +1
+        META    ← 0.6 · (base_wr − 50%) / 4pp  +  0.4 · popularność
+                  # sam winrate z małej próbki to głównie szczęście – popularność mówi,
+                  # czy postać naprawdę jest grana na tej pozycji
 
         COUNTER ← średnia ważona po wrogach E:
                     waga = 2 jeśli E jest na tej samej linii, inaczej 1
@@ -196,7 +200,12 @@ funkcja RECOMMEND_PICKS(draft):
         WYNIK ← 50 + 50 × suma_ważona
         PEWNOŚĆ ← ile gier stoi za oceną (base + matchupy)
 
-    zwróć 8 najlepszych, każdą z listą powodów („Dobrze przeciw Darius (+2.3 pp)”)
+    ranking ← 8 najlepszych, każda z listą powodów („Dobra przeciw Darius – wygrywa o 2,3% częściej niż zwykle”)
+
+    dla każdej propozycji P z rankingu:             # porównanie NA TLE pozostałych
+        #1: dlaczego jest wyżej niż #2 (składowe z największą przewagą)
+        pozostałe: w czym są lepsze od #1
+        winrate P vs średnia pozostałych, w czym P jest najlepsza z listy, czy jest najpopularniejsza
 ```
 
 **Dlaczego „wygładzony winrate”?** Postać z 3 wygranymi na 3 gry nie ma 100% winrate – po prostu brakuje danych.
@@ -251,7 +260,7 @@ zawsze sprawdzonej z danymi bieżącego patcha (np. jeśli keystone usunięto, w
 | Postacie, przedmioty, runy, czary | `GameData` co 30 min sprawdza `versions.json`; nowy patch → pobranie i przeliczenie wszystkiego. Pliki są cache'owane w `data/cache/<wersja>/` |
 | Profile postaci (typ obrażeń, CC, leczenie) | budowane od zera z CommunityDragon dla każdej wersji – nowa postać działa od razu |
 | Statystyki | crawler sam wykrywa nowy patch w meczach i zaczyna liczyć od zera |
-| Źródło statystyk w aplikacji | kolejno: `STATS_URL` → `data/stats/latest.json` (Twój crawler) → `seed/stats.json` (dołączony do repozytorium) |
+| Źródło statystyk w aplikacji | kolejno: `STATS_URL` → `data/stats/latest.json` (Twój crawler) → `seed/stats.json.gz` (dołączony do repozytorium) |
 
 ### Zbieranie statystyk (crawler)
 
@@ -260,14 +269,17 @@ zawsze sprawdzonej z danymi bieżącego patcha (np. jeśli keystone usunięto, w
 3. Uruchom:
 
 ```bash
-npm run crawl -- --matches 400 --timelines
+npm run crawl -- --matches 2000 --timelines
 ```
 
-- `--timelines` dodatkowo pobiera oś czasu meczu → kolejność przedmiotów i umiejętności (2× więcej zapytań),
-- `--tiers MASTER,DIAMOND` – z jakich lig brać graczy,
+- domyślnie mecze pochodzą od graczy z rang **Master i Grandmaster**; `--tiers MASTER,GRANDMASTER,CHALLENGER`
+  zmienia rangi (crawler nie miesza rang – inny zestaw zaczyna statystyki od zera),
+- `--timelines` dodatkowo pobiera oś czasu meczu → przedmioty startowe, kolejność przedmiotów i umiejętności
+  (2× więcej zapytań),
 - `--platform na1` – serwer (domyślnie z `RIOT_PLATFORM` w `.env`),
 - `--patch 16.20` – zbieraj wskazany patch zamiast bieżącego. Przydaje się w pierwszych dniach po premierze
-  patcha, gdy mało kto zdążył na nim zagrać i crawler marnuje zapytania na graczy bez nowych meczów,
+  patcha, gdy mało kto zdążył na nim zagrać. Crawler sam zapamiętuje, kiedy zaczął się nowszy patch, i pyta Riot
+  tylko o wcześniejsze mecze,
 - kolejne uruchomienia **dopisują** mecze (pamiętane w `data/stats/<patch>.seen.json`); co 25 meczów jest zapis,
   więc przerwanie crawla nie gubi danych,
 - uruchamiaj **jeden crawler naraz** – kilka procesów dzieli ten sam limit zapytań klucza.
@@ -280,6 +292,9 @@ Do sensownych matchupów potrzeba kilkudziesięciu tysięcy meczów – do tego 
 i osobny serwer (patrz niżej).
 
 Automatyczne odświeżanie w tle: ustaw `RIOT_API_KEY` i `AUTO_CRAWL_HOURS=6` przed `npm run dev`.
+
+Żeby testerzy dostali nowe statystyki, po crawlu uruchom `npm run export-seed` – zapisze je skompresowane
+w `seed/stats.json.gz` (do wysłania na GitHuba).
 
 ### Wersja „produkcyjna”
 
@@ -331,4 +346,4 @@ officially involved in producing or managing Riot Games properties. Riot Games, 
 trademarks or registered trademarks of Riot Games, Inc.
 
 Aplikacja nie jest powiązana z Riot Games ani przez nią wspierana. Nie zawiera klucza Riot API – statystyki
-w `seed/stats.json` to zagregowane, anonimowe dane meczów.
+w `seed/stats.json.gz` to zagregowane, anonimowe dane meczów.

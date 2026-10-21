@@ -10,6 +10,7 @@
     "start": "vite build && tsx src/server/index.ts",
     "demo": "vite build && tsx src/server/index.ts --mock",
     "crawl": "tsx src/crawler/crawl.ts",
+    "export-seed": "tsx scripts/export-seed.ts",
     "test": "node --import tsx --test test/engine.test.ts",
     "typecheck": "tsc --noEmit"
   },

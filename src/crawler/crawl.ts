@@ -29,7 +29,8 @@ export interface CrawlOptions {
   patch?: string;
 }
 
-const DEFAULT_TIERS = ["MASTER", "DIAMOND", "EMERALD"];
+/** Domyślnie zbieramy mecze graczy z Mistrza i Arcymistrza – wysoki poziom gry, a przy tym duża pula graczy. */
+const DEFAULT_TIERS = ["MASTER", "GRANDMASTER"];
 
 export async function crawl(opts: CrawlOptions): Promise<StatsFile> {
   const api = new RiotApi(opts.apiKey, opts.platform);
@@ -58,9 +59,18 @@ export async function crawl(opts: CrawlOptions): Promise<StatsFile> {
     seen = new Set();
   }
 
+  // Nie mieszamy lig: jeśli plik zebrano z innych rang, zaczynamy od zera.
+  const tiers = opts.tiers ?? DEFAULT_TIERS;
+  if (stats.matches && stats.tiers?.join(",") !== tiers.join(",")) {
+    console.log(`[crawl] Istniejące statystyki pochodzą z innych rang (${stats.tiers?.join(", ") ?? "nieznane"}) – zaczynam od zera.`);
+    stats = emptyStats(targetPatch);
+    seen = new Set();
+  }
+  stats.tiers = tiers;
+
   // 1) Gracze
   const puuids: string[] = [];
-  for (const tier of opts.tiers ?? DEFAULT_TIERS) {
+  for (const tier of tiers) {
     const players = await api.leaguePlayers(tier);
     console.log(`[crawl] ${tier}: ${players.length} graczy`);
     puuids.push(...players);
@@ -80,7 +90,8 @@ export async function crawl(opts: CrawlOptions): Promise<StatsFile> {
   for (const puuid of puuids) {
     if (added >= opts.maxMatches) break;
     // Gdy znamy początek patcha, Riot zwraca tylko nowsze mecze – nie marnujemy zapytań na stary patch.
-    for (const id of await api.matchIds(puuid, 20, pinned ? undefined : stats.patchStartTime)) {
+    // Zbierając starszy patch (--patch), pytamy tylko o mecze sprzed startu nowszego – gry z nowego patcha nie zużywają limitu.
+    for (const id of await api.matchIds(puuid, 20, pinned ? undefined : stats.patchStartTime, pinned ? stats.nextPatchStartTime : undefined)) {
       if (added >= opts.maxMatches) break;
       if (seen.has(id)) continue;
       seen.add(id);
@@ -90,7 +101,11 @@ export async function crawl(opts: CrawlOptions): Promise<StatsFile> {
       const patch = patchOf(match.info.gameVersion);
 
       if (pinned && comparePatch(patch, stats.patch) > 0) {
-        continue; // mecz z nowszego patcha niż wskazany – pomijamy, starsze mecze gracza są dalej na liście
+        // Mecz z nowszego patcha niż wskazany – pomijamy (starsze mecze gracza są dalej na liście)
+        // i zapamiętujemy, kiedy najpóźniej zaczął się nowszy patch, by następne zapytania go omijały.
+        const created = Math.floor(match.info.gameCreation / 1000);
+        if (!stats.nextPatchStartTime || created < stats.nextPatchStartTime) stats.nextPatchStartTime = created;
+        continue;
       } else if (comparePatch(patch, stats.patch) > 0) {
         // Wyszedł patch nowszy niż znany – stare statystyki tracą ważność.
         console.log(`[crawl] Nowy patch ${patch} – zaczynam statystyki od nowa.`);

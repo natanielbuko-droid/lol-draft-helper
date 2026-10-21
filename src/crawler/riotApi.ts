@@ -116,10 +116,13 @@ export class RiotApi {
     return res?.map((e) => e.puuid).filter(Boolean) ?? [];
   }
 
-  /** ID meczów od najnowszego. `startTime` (sekundy od 1970) – tylko mecze rozpoczęte później. */
-  async matchIds(puuid: string, count = 20, startTime?: number): Promise<string[]> {
-    const since = startTime ? `&startTime=${startTime}` : "";
-    return (await this.get<string[]>(this.regionUrl(`/lol/match/v5/matches/by-puuid/${puuid}/ids?queue=420&type=ranked&count=${count}${since}`))) ?? [];
+  /**
+   * ID meczów od najnowszego. `startTime` / `endTime` (sekundy od 1970) – tylko mecze rozpoczęte
+   * po / przed tym momentem (np. żeby przy zbieraniu starszego patcha pominąć gry z nowego).
+   */
+  async matchIds(puuid: string, count = 20, startTime?: number, endTime?: number): Promise<string[]> {
+    const range = `${startTime ? `&startTime=${startTime}` : ""}${endTime ? `&endTime=${endTime}` : ""}`;
+    return (await this.get<string[]>(this.regionUrl(`/lol/match/v5/matches/by-puuid/${puuid}/ids?queue=420&type=ranked&count=${count}${range}`))) ?? [];
   }
 
   match(id: string) {

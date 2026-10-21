@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { gunzipSync } from "node:zlib";
 import type { Position } from "../../shared/types";
 import { fetchJson } from "./http";
 
@@ -17,8 +18,12 @@ export interface StatsFile {
   patch: string; // np. "16.21"
   generatedAt: string;
   matches: number;
+  /** Rangi graczy, od których pobrano mecze, np. ["MASTER", "GRANDMASTER"]. */
+  tiers?: string[];
   /** Przybliżony początek patcha (sekundy) – crawler pyta Riot tylko o nowsze mecze. */
   patchStartTime?: number;
+  /** Przybliżony początek NASTĘPNEGO patcha – przy zbieraniu starszego patcha crawler pyta tylko o wcześniejsze mecze. */
+  nextPatchStartTime?: number;
   /** champion -> pozycja -> W/L */
   champions: Record<string, Partial<Record<Position, WL>>>;
   /** "champion:pozycja" -> przeciwnik z tej samej linii -> W/L */
@@ -88,7 +93,9 @@ export class StatsStore {
     const files = [path.join(this.dataDir, "stats", "latest.json"), this.seedFile].filter((f): f is string => !!f);
     for (const file of files) {
       try {
-        this.stats = JSON.parse(await fs.readFile(file, "utf8")) as StatsFile;
+        // Statystyki w repozytorium są skompresowane (.json.gz), lokalne pliki crawlera – zwykły JSON.
+        const raw = await fs.readFile(file);
+        this.stats = JSON.parse((file.endsWith(".gz") ? gunzipSync(raw) : raw).toString("utf8")) as StatsFile;
         console.log(`[stats] Statystyki patcha ${this.stats.patch}: ${this.stats.matches} meczów (${path.basename(path.dirname(file))}/${path.basename(file)}).`);
         return;
       } catch {
