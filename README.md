@@ -8,6 +8,8 @@ Samowystarczalny asystent do League of Legends (w stylu Blitz / Mobalytics / Por
   a obok **inne warianty grane przez graczy** (ścieżki przedmiotów, strony run, czary) z winrate i liczbą gier,
 - **Autonomia** – dane o grze pobierane automatycznie przy każdym nowym patchu; statystyki zbierane własnym crawlerem.
 
+![LoL Draft Helper – champ select z rekomendacjami](docs/screenshot.jpg)
+
 > 🧪 **Wersja testowa.** Aplikacja jest we wczesnej fazie – chętnie przyjmę uwagi i zgłoszenia błędów w zakładce
 > [Issues](../../issues).
 

@@ -53,8 +53,8 @@ export interface CDragonChampion {
   roles: string[];
   tacticalInfo: { style: number; difficulty: number; damageType: string; attackType: string };
   playstyleInfo: { damage: number; durability: number; crowdControl: number; mobility: number; utility: number };
-  passive: { description: string };
-  spells: { spellKey: string; description: string }[];
+  passive: { name: string; description: string };
+  spells: { spellKey: string; name: string; description: string }[];
 }
 
 export async function loadCDragonChampions(ids: number[], version: string, cacheDir: string) {

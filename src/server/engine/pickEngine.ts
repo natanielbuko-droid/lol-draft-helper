@@ -1,8 +1,18 @@
-import type { ChampionProfile, DraftState, PickRecommendation, PickScenario, Position, ScoreBreakdown, TeamAnalysis } from "../../shared/types";
+import type {
+  ChampionProfile,
+  DraftState,
+  PickRecommendation,
+  PickScenario,
+  Position,
+  Reason,
+  ScoreBreakdown,
+  TeamAnalysis,
+} from "../../shared/types";
 import { POSITIONS } from "../../shared/types";
 import type { GameData } from "../data/gameData";
 import { smoothedWinrate, type StatsStore } from "../data/statsStore";
 import { analyzeTeam, heuristicPositionFit, inferPositions } from "./teamAnalysis";
+import { abilityText, DAMAGE_NAME, inMatches, matches, names, pct, pct0, POSITION_NAME } from "./vocab";
 
 /**
  * Wagi składowych oceny. Meta (winrate + popularność) waży najwięcej, bo jest najlepiej udokumentowana danymi;
@@ -15,25 +25,29 @@ export const WEIGHTS_NO_STATS = { meta: 0.3, counter: 0, synergy: 0, composition
 /** Postać musi mieć co najmniej tyle procent gier na pozycji, żeby trafić do puli (odcina picki spoza mety). */
 export const MIN_PICK_RATE = 0.008;
 
+/** Matchup/synergię opisujemy liczbami dopiero od tylu wspólnych meczów – mniej to anegdota, nie statystyka. */
+const MIN_PAIR_GAMES = 8;
+
 const clamp = (x: number, lo = -1, hi = 1) => Math.max(lo, Math.min(hi, x));
-/** 0.0271 -> "2,7%" – zapis zrozumiały dla gracza. */
-const pct = (x: number) => `${(Math.abs(x) * 100).toFixed(1).replace(".", ",")}%`;
-/** Polska odmiana: 1 mecz, 2–4 mecze, 5+ meczów (ale 12–14 meczów). */
-const matches = (n: number) =>
-  `${n} ${n === 1 ? "mecz" : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? "mecze" : "meczów"}`;
+const plus = (text: string): Reason => ({ text, tone: "plus" });
+const minus = (text: string): Reason => ({ text, tone: "minus" });
+const info = (text: string): Reason => ({ text, tone: "info" });
 
 interface ScorePart {
   value: number;
-  reasons: string[];
+  reasons: Reason[];
 }
 
 /**
  * Ocena dopasowania do składu (heurystyka, działa zawsze – także bez statystyk).
  * Odpowiada na pytanie: "czego brakuje mojej drużynie i jak wygląda wróg?"
+ * Każdy powód mówi KTO i CZYM – z nazwami postaci i umiejętności.
  */
 export function compositionScore(c: ChampionProfile, allies: TeamAnalysis, enemies: TeamAnalysis, allyCount: number): ScorePart {
   let s = 0;
-  const reasons: string[] = [];
+  const reasons: Reason[] = [];
+  const cc = abilityText(c, "cc");
+  const dash = abilityText(c, "dash");
 
   if (allyCount >= 2) {
     // 1. Balans obrażeń AD/AP – wróg nie może kupić tylko pancerza.
@@ -41,49 +55,91 @@ export function compositionScore(c: ChampionProfile, allies: TeamAnalysis, enemi
     const sameTypeShare = c.damageType === "physical" ? allies.physicalShare : c.damageType === "magic" ? allies.magicShare : 0.5;
     const balance = (0.5 - sameTypeShare) * 1.2; // np. drużyna 80% AP, kandydat AD -> +0.36
     s += balance;
-    const other = c.damageType === "magic" ? "AD" : "AP";
-    if (balance >= 0.15) reasons.push(`Drużyna ma głównie ${other} – ta postać wyrównuje obrażenia`);
-    if (balance <= -0.15) reasons.push(`Kolejne obrażenia ${other === "AD" ? "AP" : "AD"} – skład łatwiej skontrować`);
+    if (balance >= 0.15) {
+      const magicTeam = c.damageType !== "magic";
+      const list = magicTeam ? allies.who.magic : allies.who.physical;
+      reasons.push(
+        plus(
+          `Twoja drużyna zadaje głównie obrażenia ${magicTeam ? "magiczne" : "fizyczne"} (${pct0(magicTeam ? allies.magicShare : allies.physicalShare)}` +
+            `${list.length ? `: ${names(list)}` : ""}) – ${c.name} dodaje ${DAMAGE_NAME[c.damageType]}, ` +
+            `więc wróg nie obroni się samym kupowaniem ${magicTeam ? "odporności na magię" : "pancerza"}.`,
+        ),
+      );
+    }
+    if (balance <= -0.15) {
+      const magic = c.damageType === "magic";
+      const list = magic ? allies.who.magic : allies.who.physical;
+      reasons.push(
+        minus(
+          `Kolejne obrażenia ${magic ? "magiczne" : "fizyczne"} – drużyna ma ich już ${pct0(sameTypeShare)}${list.length ? ` (${names(list)})` : ""}, ` +
+            `więc wrogowi wystarczy ${magic ? "odporność na magię" : "pancerz"}.`,
+        ),
+      );
+    }
     // 2. Frontline.
     if (allies.frontline === 0) {
-      if (c.durability === 3) (s += 0.4), reasons.push("Brak frontline'u – to wytrzymała postać");
-      else if (c.durability === 1) s -= 0.15;
+      if (c.durability === 3) {
+        s += 0.4;
+        reasons.push(plus(`Brak tanka w drużynie (${names(allies.champions)}) – ${c.name} wytrzyma walkę na froncie i przyjmie obrażenia za resztę.`));
+      } else if (c.durability === 1) {
+        s -= 0.15;
+        reasons.push(minus("Drużyna nie ma tanka, a ta postać też jest bardzo miękka – nie będzie komu zaczynać walk."));
+      }
     }
     // 3. Twarde CC.
     if (allies.hardCC < allyCount && (c.hardCC >= 2 || c.crowdControl === 3)) {
-      (s += 0.25), reasons.push("Drużynie brakuje twardego CC");
+      s += 0.25;
+      reasons.push(plus(cc ? `Drużynie brakuje twardego CC – ${c.name} unieruchamia przez ${cc}.` : `Drużynie brakuje twardego CC – ${c.name} ma dużo kontroli tłumu.`));
     }
   }
   // 4. Ochrona hyper-carry sojuszników (peel).
   if (allies.carries.length > 0 && c.utility === 3 && c.roles.includes("support")) {
-    (s += 0.25), reasons.push(`Może chronić carry: ${allies.carries.join(", ")}`);
+    s += 0.25;
+    reasons.push(plus(`Osłoni carry drużyny (${names(allies.carries)})${cc ? ` – CC na nurkujących wrogów: ${cc}` : ""}.`));
   }
-  if (allies.carries.length >= 2 && c.isCarry) s -= 0.1;
+  if (allies.carries.length >= 2 && c.isCarry) {
+    s -= 0.1;
+    reasons.push(minus(`Drużyna ma już miękkie carry (${names(allies.carries)}) – trzecie trudno będzie ochronić.`));
+  }
 
   // 5. Odpowiedź na skład wroga.
   if (enemies.assassins >= 2 && c.isCarry && c.mobility === 1) {
-    (s -= 0.2), reasons.push("Łatwy cel dla zabójców przeciwnika");
+    s -= 0.2;
+    reasons.push(minus(`Zabójcy wroga (${names(enemies.who.assassins)}) łatwo dopadną tę postać – nie ma ucieczki.`));
   }
   if (enemies.carries.length >= 2 && c.hardCC >= 2) {
-    (s += 0.15), reasons.push(`Twarde CC na wrogie carry (${enemies.carries.join(", ")})`);
+    s += 0.15;
+    reasons.push(plus(`Wrogie carry (${names(enemies.carries)}) – złapie je twardym CC${cc ? `: ${cc}` : ""}.`));
   }
   if (enemies.frontline >= 2 && c.isCarry && c.attackType === "ranged" && c.damageType !== "magic") {
-    (s += 0.1), reasons.push("Ciągłe obrażenia z dystansu dobre na tanków wroga");
+    s += 0.1;
+    reasons.push(plus(`Tanki wroga (${names(enemies.who.tanks)}) – stałe obrażenia z dystansu dobrze je topią.`));
   }
   if (enemies.divers >= 2) {
     // Wróg "wskakuje" na tylną linię: liczy się ucieczka, wytrzymałość lub CC do samoobrony.
-    if (c.mobility === 3) (s += 0.15), reasons.push(`Mobilność pozwala uciec przed ${enemies.divers} diverami wroga`);
-    else if (c.hardCC >= 2 && c.attackType === "ranged") (s += 0.1), reasons.push("CC do samoobrony przed diverami wroga");
-    else if (c.durability === 1 && c.mobility === 1) (s -= 0.15), reasons.push("Miękka i statyczna – łatwy cel dla diverów wroga");
+    const d = names(enemies.who.divers);
+    if (c.mobility === 3) {
+      s += 0.15;
+      reasons.push(plus(dash ? `Diverzy wroga (${d}) – ucieknie im dzięki doskokowi: ${dash}.` : `Diverzy wroga (${d}) – ta postać jest na tyle mobilna, że im ucieknie.`));
+    } else if (c.hardCC >= 2 && c.attackType === "ranged") {
+      s += 0.1;
+      reasons.push(plus(`Diverzy wroga (${d}) – obroni się, unieruchamiając ich${cc ? `: ${cc}` : ""}.`));
+    } else if (c.durability === 1 && c.mobility === 1) {
+      s -= 0.15;
+      reasons.push(minus(`Diverzy wroga (${d}) łatwo dopadną tę postać – jest miękka i nie ma doskoku.`));
+    }
   }
   if (enemies.melee >= 2 && c.attackType === "ranged" && c.hardCC >= 1) {
-    (s += 0.1), reasons.push(`Wróg ma ${enemies.melee} postacie walczące wręcz – kiting i CC z dystansu`);
+    s += 0.1;
+    reasons.push(plus(`Wróg walczy wręcz (${names(enemies.who.melee)}) – walcząc z dystansu, może trzymać ich z dala${cc ? `: ${cc}` : ""}.`));
   }
-  if (enemies.champions.length >= 3 && enemies.avgDurability <= 1.8 && c.damage === 3) {
-    (s += 0.1), reasons.push("Miękki skład wroga – postać z dużym burstem");
+  if (enemies.champions.length >= 3 && enemies.avgDurability <= 1.8 && c.damage === 3 && enemies.who.squishy.length) {
+    s += 0.1;
+    reasons.push(plus(`Miękkie postacie wroga (${names(enemies.who.squishy)}) – duże obrażenia tej postaci szybko je zabiją.`));
   }
   if (enemies.hardCC >= 6 && c.mobility === 3) {
-    (s += 0.05), reasons.push("Mobilność pomaga unikać CC wroga");
+    s += 0.05;
+    reasons.push(plus(`Dużo CC u wroga (${names(enemies.who.cc.slice(0, 3))}) – ${dash ? `doskok ${dash}` : "mobilność"} pomaga go unikać.`));
   }
   return { value: clamp(s), reasons };
 }
@@ -101,9 +157,11 @@ export interface PickContext {
 }
 
 /** Pełna ocena jednej postaci: Meta + Counter + Synergy + Composition. */
-export function scoreChampion(c: ChampionProfile, ctx: PickContext, stats: StatsStore): { score: ScoreBreakdown; reasons: string[] } {
-  const reasons: string[] = [];
+export function scoreChampion(c: ChampionProfile, ctx: PickContext, stats: StatsStore): { score: ScoreBreakdown; reasons: Reason[] } {
   const W = stats.hasData ? WEIGHTS_WITH_STATS : WEIGHTS_NO_STATS;
+  const counterReasons: Reason[] = [];
+  const synergyReasons: Reason[] = [];
+  const metaReasons: Reason[] = [];
 
   // --- META: siła na patchu = wygładzony winrate + popularność na tej pozycji ---
   // Sam winrate z małej próbki (np. 34 gry po 70%) to głównie szczęście; popularność mówi,
@@ -111,14 +169,16 @@ export function scoreChampion(c: ChampionProfile, ctx: PickContext, stats: Stats
   const base = stats.championWL(c.id, ctx.position);
   const baseWr = smoothedWinrate(base, 150);
   const games = base?.games ?? 0;
+  const rawBase = games ? base!.wins / games : baseWr;
   const pickRate = ctx.positionGames ? games / ctx.positionGames : 0;
   let meta: number;
   if (stats.hasData) {
     const wrScore = clamp((baseWr - 0.5) / 0.04);
     const popScore = pickRate > 0 ? clamp(Math.log2(pickRate / ctx.avgPickRate) / 2) : -1;
     meta = 0.6 * wrScore + 0.4 * popScore;
-    // Winrate i popularność UI pokazuje w osobnej linii – tu tylko ostrzeżenie o rzadkim picku.
-    if (popScore <= -0.6 && games > 0) reasons.push(`Rzadki wybór (${pct(pickRate)} gier na tej pozycji, ${matches(games)}) – ocena mniej pewna`);
+    if (popScore <= -0.6 && games > 0) {
+      metaReasons.push(info(`Rzadko grana ${POSITION_NAME[ctx.position]} (${pct(pickRate)} gier, ${matches(games)}) – ocena mniej pewna.`));
+    }
   } else {
     // Bez statystyk "meta" zastępuje dopasowanie klasy postaci do pozycji (np. strzelec na ADC).
     meta = clamp((heuristicPositionFit(c, ctx.position) - 0.6) * 2);
@@ -138,8 +198,10 @@ export function scoreChampion(c: ChampionProfile, ctx: PickContext, stats: Stats
     counterSum += delta * w;
     counterW += w;
     matchupGames += wl.games;
-    if (delta >= 0.02) reasons.push(`Dobra przeciw ${e.name} – wygrywa o ${pct(delta)} częściej niż zwykle`);
-    if (delta <= -0.02) reasons.push(`Trudny przeciwnik: ${e.name} – wygrywa o ${pct(delta)} rzadziej niż zwykle`);
+    if (wl.games >= MIN_PAIR_GAMES && Math.abs(delta) >= 0.02) {
+      const text = `vs ${e.name}${sameLane ? " (rywal na linii)" : ""}: ${pct(wl.wins / wl.games)} wygranych ${inMatches(wl.games)} – zwykle ${pct(rawBase)}.`;
+      (sameLane ? counterReasons.unshift.bind(counterReasons) : counterReasons.push.bind(counterReasons))(delta > 0 ? plus(text) : minus(text));
+    }
   }
   const counter = counterW ? clamp(counterSum / counterW / 0.04) : 0;
 
@@ -152,13 +214,16 @@ export function scoreChampion(c: ChampionProfile, ctx: PickContext, stats: Stats
     const delta = smoothedWinrate(wl, 40, baseWr) - baseWr; // jak wyżej: w stronę własnego winrate postaci
     synSum += delta;
     synN++;
-    if (delta >= 0.02) reasons.push(`Dobrze współgra z ${a.name} – wygrywa o ${pct(delta)} częściej`);
+    if (wl.games >= MIN_PAIR_GAMES && delta >= 0.02) {
+      synergyReasons.push(plus(`W drużynie z: ${a.name} – ${pct(wl.wins / wl.games)} wygranych ${inMatches(wl.games)} (zwykle ${pct(rawBase)}).`));
+    } else if (wl.games >= MIN_PAIR_GAMES && delta <= -0.03) {
+      synergyReasons.push(minus(`W drużynie z: ${a.name} – tylko ${pct(wl.wins / wl.games)} wygranych ${inMatches(wl.games)} (zwykle ${pct(rawBase)}).`));
+    }
   }
   const synergy = synN ? clamp(synSum / synN / 0.04) : 0;
 
   // --- COMPOSITION: heurystyka składu (zawsze dostępna) ---
   const comp = compositionScore(c, ctx.allyAnalysis, ctx.enemyAnalysis, ctx.allies.length);
-  reasons.push(...comp.reasons);
 
   const weighted = W.meta * meta + W.counter * counter + W.synergy * synergy + W.composition * comp.value;
   const total = Math.round(50 + 50 * clamp(weighted));
@@ -181,7 +246,8 @@ export function scoreChampion(c: ChampionProfile, ctx: PickContext, stats: Stats
       winrate: games ? base!.wins / games : null,
       pickRate: stats.hasData ? pickRate : null,
     },
-    reasons,
+    // Najpierw to, co dotyczy tego konkretnego draftu (wrogowie, skład, sojusznicy), na końcu meta.
+    reasons: [...counterReasons, ...comp.reasons, ...synergyReasons, ...metaReasons],
   };
 }
 
@@ -240,8 +306,30 @@ export function recommendPicks(draft: DraftState, data: GameData, stats: StatsSt
     })
     .sort((a, b) => b.score.total - a.score.total || b.score.confidence - a.score.confidence)
     .slice(0, limit);
+  addMetaContext(picks, ctx.position);
   compareWithOthers(picks, picks.slice(0, COMPARE_GROUP));
   return picks;
+}
+
+/**
+ * Kontekst mety względem CAŁEJ puli: miejsce w popularności i percentyl winrate na tej pozycji
+ * ("2. najczęściej wybierana na ADC", "winrate wyższy niż u 85% postaci na ADC").
+ */
+function addMetaContext(picks: PickRecommendation[], position: Position): void {
+  const withData = picks.filter((p) => p.score.games >= 30 && p.score.winrate !== null);
+  const byPopularity = [...picks].filter((p) => (p.score.pickRate ?? 0) > 0).sort((a, b) => b.score.pickRate! - a.score.pickRate!);
+  for (const p of picks) {
+    const rank = byPopularity.indexOf(p) + 1;
+    if (rank >= 1 && rank <= 3) {
+      p.reasons.push(info(`${rank}. najczęściej wybierana postać ${POSITION_NAME[position]} (${pct(p.score.pickRate!)} gier).`));
+    }
+    if (p.score.winrate === null || p.score.games < 30 || withData.length < 8) continue;
+    const below = withData.filter((o) => o !== p && o.score.winrate! < p.score.winrate!).length / (withData.length - 1);
+    if (below >= 0.999) p.reasons.push(plus(`Najwyższy winrate wśród postaci ${POSITION_NAME[position]}.`));
+    else if (below >= 0.8) p.reasons.push(plus(`Winrate wyższy niż u ${pct0(below)} postaci ${POSITION_NAME[position]}.`));
+    else if (below <= 0.001) p.reasons.push(minus(`Najniższy winrate wśród postaci ${POSITION_NAME[position]}.`));
+    else if (below <= 0.2) p.reasons.push(minus(`Winrate niższy niż u ${pct0(1 - below)} postaci ${POSITION_NAME[position]}.`));
+  }
 }
 
 type Component = "meta" | "counter" | "synergy" | "composition";
@@ -252,6 +340,25 @@ const COMPONENT_LABEL: Record<Component, string> = {
   synergy: "współpraca z Twoją drużyną",
   composition: "dopasowanie do składu",
 };
+
+/** Konkretny opis przewagi w danej kategorii – z liczbami, gdy są. */
+function advantage(k: Component, p: PickRecommendation, other: PickRecommendation): string {
+  switch (k) {
+    case "meta": {
+      // Przewaga w "sile na patchu" może wynikać z winrate albo z popularności – mówimy, z czego naprawdę.
+      const [w1, w2, r1, r2] = [p.score.winrate, other.score.winrate, p.score.pickRate, other.score.pickRate];
+      if (w1 !== null && w2 !== null && w1 > w2) return `winrate (${pct(w1)} wobec ${pct(w2)})`;
+      if (r1 !== null && r2 !== null && r1 > r2) return `popularność (${pct(r1)} wobec ${pct(r2)} gier na pozycji)`;
+      return "siła na tym patchu";
+    }
+    case "counter":
+      return "matchupy z wybranymi wrogami";
+    case "synergy":
+      return "wyniki z Twoimi sojusznikami";
+    case "composition":
+      return "dopasowanie do składu";
+  }
+}
 
 /**
  * Wyjaśnia każdą propozycję NA TLE pozostałych – żeby gracz wiedział nie tylko,
@@ -274,11 +381,11 @@ export function compareWithOthers(picks: PickRecommendation[], group: PickRecomm
       const ahead = COMPONENTS.map((k) => [k, p.score[k] - next.score[k]] as const)
         .filter(([, d]) => d > 0.1)
         .sort((a, b) => b[1] - a[1]);
-      if (ahead.length) out.push(`Przewaga nad ${next.name}: ${ahead.slice(0, 2).map(([k]) => COMPONENT_LABEL[k]).join(", ")}.`);
+      if (ahead.length) out.push(`Przewaga nad #2 (${next.name}): ${ahead.slice(0, 2).map(([k]) => advantage(k, p, next)).join(", ")}.`);
     } else {
       const best = picks[0];
       const better = COMPONENTS.filter((k) => p.score[k] - best.score[k] > 0.1);
-      if (better.length) out.push(`Lepsza niż ${best.name} w kategoriach: ${better.map((k) => COMPONENT_LABEL[k]).join(", ")} – ale w sumie wypada słabiej.`);
+      if (better.length) out.push(`Względem #1 (${best.name}) lepsze: ${better.map((k) => advantage(k, p, best)).join(", ")} – ale w sumie wypada słabiej.`);
     }
 
     // 2. Winrate na tle pozostałych propozycji.
@@ -286,8 +393,8 @@ export function compareWithOthers(picks: PickRecommendation[], group: PickRecomm
     if (p.score.winrate !== null && otherWr.length) {
       const avg = mean(otherWr);
       const d = p.score.winrate - avg;
-      if (d >= 0.015) out.push(`Wygrywa częściej niż pozostałe propozycje: ${pct(p.score.winrate)} wobec średnio ${pct(avg)}.`);
-      else if (d <= -0.03) out.push(`Wygrywa rzadziej niż pozostałe propozycje (${pct(p.score.winrate)} wobec średnio ${pct(avg)}) – jest wysoko dzięki innym zaletom.`);
+      if (d >= 0.015) out.push(`Wygrywa częściej niż czołówka listy: ${pct(p.score.winrate)} wobec średnio ${pct(avg)}.`);
+      else if (d <= -0.03) out.push(`Wygrywa rzadziej niż czołówka (${pct(p.score.winrate)} wobec średnio ${pct(avg)}) – jest wysoko dzięki innym zaletom.`);
     }
 
     // 3. W czym jest najlepsza z czołówki listy.
@@ -299,7 +406,7 @@ export function compareWithOthers(picks: PickRecommendation[], group: PickRecomm
     // 4. Popularność – najczęściej grana z czołowych propozycji.
     const pr = p.score.pickRate;
     if (inGroup && pr !== null && pr > 0 && others.every((o) => (o.score.pickRate ?? 0) < pr)) {
-      out.push(`Najczęściej wybierana z proponowanych postaci (${pct(pr)} gier na tej pozycji).`);
+      out.push(`Najczęściej wybierana z czołówki (${pct(pr)} gier na tej pozycji).`);
     }
 
     p.comparison = out.slice(0, 3);
@@ -308,28 +415,12 @@ export function compareWithOthers(picks: PickRecommendation[], group: PickRecomm
 
 // ------------------------------------------------------------ SCENARIUSZE ---
 
-/** Powody, które mówią o słabości postaci (reszta to zalety). */
-const NEGATIVE_REASON = /^(Trudny przeciwnik|Kolejne obrażenia|Łatwy cel|Miękka i statyczna|Rzadki wybór)/;
-
-const POSITIVE_LABEL: Record<Component, (p: PickRecommendation) => string> = {
-  meta: (p) => `Mocna na tym patchu${p.score.winrate !== null ? ` – wygrywa ${pct(p.score.winrate)} gier` : ""}.`,
-  counter: () => "Dobrze radzi sobie z wybranymi wrogami.",
-  synergy: () => "Dobrze współgra z Twoją drużyną.",
-  composition: () => "Uzupełnia braki w składzie drużyny.",
-};
-const NEGATIVE_LABEL: Record<Component, (p: PickRecommendation) => string> = {
-  meta: (p) => `Słaba na tym patchu${p.score.winrate !== null ? ` – wygrywa tylko ${pct(p.score.winrate)} gier` : ""}.`,
-  counter: () => "Ma problemy z wybranymi wrogami.",
-  synergy: () => "Słabo współgra z Twoją drużyną.",
-  composition: () => "Pogłębia słabości składu zamiast je łatać.",
-};
-
 /**
  * Trzy scenariusze z pełnej listy picków:
  *  - idealnie   – najwyżej oceniona postać,
  *  - neutralnie – postać z oceną najbliższą 50 (ani pomaga, ani szkodzi),
  *  - koszmarnie – najniżej oceniona z postaci faktycznie granych na tej pozycji.
- * Każdy dostaje krótkie podsumowanie: co przemawia za nim / przeciw niemu.
+ * Podsumowanie korzysta z konkretnych powodów (z nazwami i liczbami), a ogólne opisy są tylko zapasem.
  */
 export function pickScenarios(picks: PickRecommendation[]): PickScenario[] {
   if (picks.length < 3) return [];
@@ -339,32 +430,28 @@ export function pickScenarios(picks: PickRecommendation[]): PickScenario[] {
     .slice(1, -1)
     .reduce((best, p) => (Math.abs(p.score.total - 50) < Math.abs(best.score.total - 50) ? p : best));
 
-  const strengths = (p: PickRecommendation) =>
-    COMPONENTS.filter((k) => p.score[k] > 0.15)
-      .sort((a, b) => p.score[b] - p.score[a])
-      .map((k) => POSITIVE_LABEL[k](p));
-  const weaknesses = (p: PickRecommendation) =>
-    COMPONENTS.filter((k) => p.score[k] < -0.15)
-      .sort((a, b) => p.score[a] - p.score[b])
-      .map((k) => NEGATIVE_LABEL[k](p));
-  const goodReasons = (p: PickRecommendation) => p.reasons.filter((r) => !NEGATIVE_REASON.test(r));
-  const badReasons = (p: PickRecommendation) => p.reasons.filter((r) => NEGATIVE_REASON.test(r));
+  const pros = (p: PickRecommendation) => p.reasons.filter((r) => r.tone === "plus").map((r) => r.text);
+  const cons = (p: PickRecommendation) => p.reasons.filter((r) => r.tone === "minus").map((r) => r.text);
+  const fallback = (p: PickRecommendation, sign: 1 | -1) =>
+    COMPONENTS.filter((k) => sign * p.score[k] > 0.15).map((k) => `${sign > 0 ? "Mocna strona" : "Słaba strona"}: ${COMPONENT_LABEL[k]}.`);
 
-  const idealSummary = [...strengths(ideal).slice(0, 2), ...goodReasons(ideal).slice(0, 2)];
-  const nightmareSummary = [...weaknesses(nightmare).slice(0, 2), ...badReasons(nightmare).slice(0, 2)];
+  const idealSummary = pros(ideal).slice(0, 3);
+  const nightmareSummary = cons(nightmare).slice(0, 3);
   const neutralSummary = [
     "Nie wyróżnia się ani na plus, ani na minus w tym drafcie.",
-    ...strengths(neutral).slice(0, 1).map((s) => `Plus: ${s}`),
-    ...weaknesses(neutral).slice(0, 1).map((s) => `Minus: ${s}`),
+    ...pros(neutral).slice(0, 1).map((s) => `Plus: ${s}`),
+    ...cons(neutral).slice(0, 1).map((s) => `Minus: ${s}`),
   ];
 
   return [
-    { kind: "ideal", pick: ideal, summary: idealSummary.length ? idealSummary : ["Najwyżej oceniona postać w tym drafcie."] },
+    { kind: "ideal", pick: ideal, summary: idealSummary.length ? idealSummary : fallback(ideal, 1).slice(0, 2) },
     { kind: "neutral", pick: neutral, summary: neutralSummary },
     {
       kind: "nightmare",
       pick: nightmare,
-      summary: nightmareSummary.length ? nightmareSummary : ["Najniżej oceniona z granych na tej pozycji – inne opcje są po prostu lepsze."],
+      summary: nightmareSummary.length
+        ? nightmareSummary
+        : [...fallback(nightmare, -1).slice(0, 2), "Najniżej oceniona z granych na tej pozycji – inne opcje są po prostu lepsze."],
     },
   ];
 }

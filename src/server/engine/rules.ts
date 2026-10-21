@@ -1,6 +1,7 @@
 import type { ChampionProfile, TeamAnalysis } from "../../shared/types";
 import type { CatalogItem } from "../data/itemCatalog";
 import type { Archetype } from "./archetype";
+import { names } from "./vocab";
 
 /**
  * Reguły przedmiotów sytuacyjnych – zapisane deklaratywnie (jak tabela),
@@ -48,7 +49,7 @@ export const RULES: SituationalRule[] = [
     strength: ({ enemy }) => (enemy.healing >= THRESHOLDS.healing ? Math.min(1, enemy.healing / THRESHOLDS.heavyHealing) : 0),
     matches: (item) => item.flags.antiHeal,
     allowComponent: ({ enemy }) => enemy.healing >= THRESHOLDS.heavyHealing,
-    reason: ({ enemy }) => `Wrogowie mocno się leczą (wynik ${enemy.healing}) – Grievous Wounds obetnie leczenie.`,
+    reason: ({ enemy }) => `Leczą się: ${names(enemy.who.healers.slice(0, 3))} – Grievous Wounds obetnie im leczenie o 40%.`,
   },
   {
     id: "armor",
@@ -56,14 +57,14 @@ export const RULES: SituationalRule[] = [
     strength: ({ enemy, arch }) =>
       enemy.physicalShare >= THRESHOLDS.damageShare ? (enemy.physicalShare - 0.5) * 2 * (arch === "tank" ? 1 : 0.8) : 0,
     matches: (item) => item.flags.armor,
-    reason: ({ enemy }) => `Przeciwnik zadaje ${pct(enemy.physicalShare)} obrażeń fizycznych – pancerz (Armor).`,
+    reason: ({ enemy }) => `${pct(enemy.physicalShare)} obrażeń wroga to obrażenia fizyczne (${names(enemy.who.physical)}) – pancerz zmniejszy każde ich trafienie.`,
   },
   {
     id: "magic-resist",
     strength: ({ enemy, arch }) =>
       enemy.magicShare >= THRESHOLDS.damageShare ? (enemy.magicShare - 0.5) * 2 * (arch === "tank" ? 1 : 0.8) : 0,
     matches: (item) => item.flags.magicResist,
-    reason: ({ enemy }) => `Przeciwnik zadaje ${pct(enemy.magicShare)} obrażeń magicznych – odporność na magię (MR).`,
+    reason: ({ enemy }) => `${pct(enemy.magicShare)} obrażeń wroga to obrażenia magiczne (${names(enemy.who.magic)}) – odporność na magię zmniejszy każde ich trafienie.`,
   },
   {
     id: "anti-tank",
@@ -71,19 +72,19 @@ export const RULES: SituationalRule[] = [
     strength: ({ enemy, arch }) =>
       isDamageDealer(arch) && (enemy.frontline >= THRESHOLDS.frontline || enemy.avgDurability >= THRESHOLDS.avgDurability) ? 0.8 : 0,
     matches: (item, { arch }) => (physicalArch(arch) ? item.flags.percentArmorPen : item.flags.percentMagicPen),
-    reason: ({ enemy }) => `Wróg ma ${enemy.frontline} wytrzymałe postacie – procentowa penetracja (Armor/Magic Pen).`,
+    reason: ({ enemy }) => `Wytrzymali wrogowie (${names(enemy.who.tanks)}) – procentowa penetracja przebija pancerz/odporność, których nabudują.`,
   },
   {
     id: "tenacity-cleanse",
     // if enemy_hard_cc > threshold -> tenacity / QSS
     strength: ({ enemy, me }) => (enemy.hardCC >= THRESHOLDS.hardCC ? Math.min(1, enemy.hardCC / 10) * (me.isCarry ? 1 : 0.7) : 0),
     matches: (item, { me, arch }) => (me.isCarry || arch === "enchanter" ? item.flags.cleanse || item.flags.tenacity : item.flags.tenacity),
-    reason: ({ enemy }) => `Dużo twardego CC u wroga (${enemy.hardCC} umiejętności) – nieustępliwość (Tenacity) lub oczyszczenie (QSS).`,
+    reason: ({ enemy }) => `Twarde CC u wroga: ${names(enemy.who.cc.slice(0, 3))} – nieustępliwość skraca unieruchomienia, a Quicksilver je zdejmuje.`,
   },
   {
     id: "anti-burst",
     strength: ({ enemy, me }) => (enemy.assassins >= THRESHOLDS.assassins && me.durability <= 2 ? 0.7 : 0),
     matches: (item) => item.flags.stasis || item.flags.spellShield || item.flags.lifeline,
-    reason: ({ enemy }) => `${enemy.assassins} zabójców u wroga – przedmiot obronny przeciw burstowi (Stasis / tarcza / Lifeline).`,
+    reason: ({ enemy }) => `Zabójcy wroga (${names(enemy.who.assassins)}) – Stasis, tarcza albo Lifeline pozwolą przetrwać ich atak.`,
   },
 ];

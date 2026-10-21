@@ -20,6 +20,7 @@ import type { StatsStore } from "../data/statsStore";
 import { archetypeOf, itemFit, type Archetype } from "./archetype";
 import { RULES, THRESHOLDS, type RuleContext } from "./rules";
 import { analyzeTeam } from "./teamAnalysis";
+import { names } from "./vocab";
 
 const toRef = (i: CatalogItem): ItemRef => ({ id: i.id, name: i.name, image: i.image, gold: i.gold });
 
@@ -83,10 +84,14 @@ function chooseBoots(arch: Archetype, enemy: TeamAnalysis, items: Map<string, Ca
   let pick: CatalogItem | undefined;
   if (enemy.hardCC >= THRESHOLDS.hardCC || (enemy.magicShare >= 0.65 && frontliner)) {
     pick = boots.find((b) => b.flags.tenacity && b.flags.magicResist);
-    if (pick) reason = "Buty z nieustępliwością/MR – wróg ma dużo CC lub obrażeń magicznych.";
+    if (pick)
+      reason =
+        enemy.hardCC >= THRESHOLDS.hardCC
+          ? `${pick.name} – nieustępliwość skróci CC wroga (${names(enemy.who.cc.slice(0, 3))}).`
+          : `${pick.name} – odporność na magię przeciw ${names(enemy.who.magic)}.`;
   } else if (enemy.physicalShare >= 0.7 && frontliner) {
     pick = boots.find((b) => b.flags.armor);
-    if (pick) reason = "Buty z pancerzem – wróg zadaje głównie obrażenia fizyczne.";
+    if (pick) reason = `${pick.name} – pancerz przeciw obrażeniom fizycznym (${names(enemy.who.physical)}).`;
   }
   if (!pick && bs) {
     // Tylko pełne buty (poziom 2) z co najmniej kilku gier – podstawowe "Buty" w ekwipunku to zwykle niedokończony zakup.
@@ -138,24 +143,24 @@ function chooseSummoners(me: ChampionProfile, position: Position, enemy: TeamAna
   const fromStats = bestEntry(bs?.summoners);
   if (fromStats) {
     const spells = fromStats.split("+").map((k) => byKey.get(Number(k))).filter((s) => !!s);
-    if (spells.length === 2) return { spells, reason: "Najskuteczniejsza para czarów na tym patchu (statystyki)." };
+    if (spells.length === 2) return { spells, reason: "Para czarów z najlepszym wynikiem wśród najczęściej granych na tej postaci." };
   }
 
   // Heurystyka: Flash + czar zależny od pozycji, korygowany przez skład wroga.
   let second = { TOP: "SummonerTeleport", JUNGLE: "SummonerSmite", MIDDLE: "SummonerDot", BOTTOM: "SummonerHeal", UTILITY: "SummonerDot" }[position];
-  let reason = "Standardowy zestaw dla tej pozycji.";
+  let reason = "Standardowy zestaw dla tej pozycji – brak powodu, by go zmieniać.";
   if (position === "BOTTOM" && enemy.hardCC >= THRESHOLDS.hardCC + 2) {
     second = "SummonerBoost"; // Cleanse
-    reason = "Wróg ma bardzo dużo twardego CC – Cleanse zamiast Heal.";
+    reason = `Dużo twardego CC u wroga (${names(enemy.who.cc.slice(0, 3))}) – Cleanse zdejmie unieruchomienie, Heal by go nie przeżył.`;
   } else if (position === "UTILITY" && (enemy.assassins >= 1 || enemy.carries.length >= 2)) {
     second = "SummonerExhaust";
-    reason = "Exhaust neutralizuje zabójców / carry przeciwnika.";
+    reason = `Exhaust osłabi ${names([...enemy.who.assassins, ...enemy.carries].filter((x, i, a) => a.indexOf(x) === i).slice(0, 2))} w kluczowym momencie walki.`;
   } else if (position === "MIDDLE" && enemy.assassins >= THRESHOLDS.assassins && me.isCarry) {
     second = "SummonerBarrier";
-    reason = "Barrier chroni przed burstem zabójców.";
+    reason = `Barrier pozwala przetrwać burst zabójców wroga (${names(enemy.who.assassins)}).`;
   } else if (position === "TOP" && enemy.healing >= THRESHOLDS.heavyHealing) {
     second = "SummonerDot";
-    reason = "Ignite (z Grievous Wounds) na leczącego się przeciwnika.";
+    reason = `Ignite (z Grievous Wounds) na leczących się wrogów: ${names(enemy.who.healers.slice(0, 2))}.`;
   }
   const spells = ["SummonerFlash", second].map((id) => data.summoners.get(id)).filter((s) => !!s);
   return { spells, reason };

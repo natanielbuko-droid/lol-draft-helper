@@ -14,7 +14,7 @@ let nextId = 1;
 function champ(p: Partial<ChampionProfile>): ChampionProfile {
   return {
     id: nextId++, key: "X", name: "X", image: "", roles: ["fighter"], damageType: "physical", attackType: "melee",
-    damage: 2, durability: 2, crowdControl: 2, mobility: 2, utility: 1, healing: 0, hardCC: 1, isCarry: false, ...p,
+    damage: 2, durability: 2, crowdControl: 2, mobility: 2, utility: 1, healing: 0, hardCC: 1, isCarry: false, abilities: [], ...p,
   };
 }
 
@@ -112,14 +112,14 @@ test("porównanie z innymi propozycjami wyjaśnia przewagę #1 i mocne strony po
     pick("C", 55, { meta: 0.1, counter: 0.0, winrate: 0.49 }),
   ];
   compareWithOthers(picks);
-  assert.ok(picks[0].comparison.some((c) => c.startsWith("Przewaga nad B") && c.includes("siła na patchu")));
-  assert.ok(picks[0].comparison.some((c) => c.startsWith("Wygrywa częściej niż pozostałe")));
+  assert.ok(picks[0].comparison.some((c) => c.startsWith("Przewaga nad #2 (B)") && c.includes("winrate (55,0% wobec 50,0%)")));
+  assert.ok(picks[0].comparison.some((c) => c.startsWith("Wygrywa częściej niż czołówka")));
   assert.ok(picks[0].comparison.length <= 3, "najwyżej 3 zdania porównania na postać");
-  assert.ok(picks[1].comparison.some((c) => c.includes("Lepsza niż A") && c.includes("radzenie sobie z wybranymi wrogami")));
+  assert.ok(picks[1].comparison.some((c) => c.startsWith("Względem #1 (A) lepsze") && c.includes("matchupy z wybranymi wrogami")));
 });
 
 test("3 scenariusze: idealnie = najlepsza, koszmarnie = najgorsza, neutralnie = ocena najbliższa 50", () => {
-  const pick = (name: string, total: number, s: Partial<PickRecommendation["score"]> = {}, reasons: string[] = []): PickRecommendation => ({
+  const pick = (name: string, total: number, s: Partial<PickRecommendation["score"]> = {}, reasons: PickRecommendation["reasons"] = []): PickRecommendation => ({
     championId: nextId++, name, image: "", reasons, comparison: [],
     score: { meta: 0, counter: 0, synergy: 0, composition: 0, total, confidence: 1, games: 100, winrate: 0.5, pickRate: 0.02, ...s },
   });
@@ -128,15 +128,18 @@ test("3 scenariusze: idealnie = najlepsza, koszmarnie = najgorsza, neutralnie = 
     pick("Dobra", 60),
     pick("Środek", 51),
     pick("Słaba", 44),
-    pick("Dno", 35, { meta: -0.6, winrate: 0.44 }, ["Trudny przeciwnik: X – wygrywa o 3,0% rzadziej niż zwykle"]),
+    pick("Dno", 35, { meta: -0.6, winrate: 0.44 }, [
+      { text: "vs X (rywal na linii): 41,0% wygranych w 20 meczach – zwykle 50,0%.", tone: "minus" },
+      { text: "2. najczęściej wybierana postać na ADC (9,0% gier).", tone: "info" },
+    ]),
   ];
   const [ideal, neutral, nightmare] = pickScenarios(picks);
   assert.equal(ideal.kind, "ideal");
   assert.equal(ideal.pick.name, "Top");
   assert.equal(neutral.pick.name, "Środek");
   assert.equal(nightmare.pick.name, "Dno");
-  assert.ok(ideal.summary.some((l) => l.startsWith("Mocna na tym patchu")));
-  assert.ok(nightmare.summary.some((l) => l.startsWith("Słaba na tym patchu")));
-  assert.ok(nightmare.summary.some((l) => l.startsWith("Trudny przeciwnik")));
+  // Bez konkretnych powodów – zapasowy opis kategorii; z powodami – same wady (bez neutralnych informacji).
+  assert.ok(ideal.summary.some((l) => l.startsWith("Mocna strona: siła na patchu")));
+  assert.deepEqual(nightmare.summary, ["vs X (rywal na linii): 41,0% wygranych w 20 meczach – zwykle 50,0%."]);
   assert.deepEqual(pickScenarios(picks.slice(0, 2)), [], "za mało kandydatów = brak scenariuszy");
 });

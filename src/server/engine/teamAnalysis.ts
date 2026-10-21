@@ -1,6 +1,7 @@
 import type { ChampionProfile, Position, TeamAnalysis } from "../../shared/types";
 import { POSITIONS } from "../../shared/types";
 import type { StatsStore } from "../data/statsStore";
+import { abilitiesWith, championWith, names } from "./vocab";
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 
@@ -19,6 +20,13 @@ export function analyzeTeam(champs: ChampionProfile[]): TeamAnalysis {
   const physicalShare = totalW ? physW / totalW : 0.5;
   const sum = (f: (c: ChampionProfile) => number) => champs.reduce((s, c) => s + f(c), 0);
 
+  const pick = (f: (c: ChampionProfile) => boolean) => champs.filter(f);
+  const isTank = (c: ChampionProfile) => c.durability === 3 || c.roles[0] === "tank";
+  const isDiver = (c: ChampionProfile) => c.attackType === "melee" && c.damage >= 2 && (c.roles.includes("fighter") || c.roles.includes("assassin"));
+  // Kto leczy / ma CC – od najsilniejszego, z nazwami umiejętności ("Vladimir (Transfuzja, Hemoplaga)").
+  const healers = pick((c) => c.healing >= 1 && abilitiesWith(c, "heal").length > 0).sort((a, b) => b.healing - a.healing);
+  const ccChamps = pick((c) => abilitiesWith(c, "cc").length > 0).sort((a, b) => b.hardCC - a.hardCC);
+
   const analysis: TeamAnalysis = {
     champions: champs.map((c) => c.name),
     physicalShare,
@@ -26,24 +34,37 @@ export function analyzeTeam(champs: ChampionProfile[]): TeamAnalysis {
     totalCC: sum((c) => c.crowdControl),
     hardCC: sum((c) => c.hardCC),
     healing: sum((c) => c.healing),
-    frontline: champs.filter((c) => c.durability === 3 || c.roles[0] === "tank").length,
+    frontline: pick(isTank).length,
     avgDurability: champs.length ? sum((c) => c.durability) / champs.length : 0,
-    assassins: champs.filter((c) => c.roles.includes("assassin")).length,
-    divers: champs.filter((c) => c.attackType === "melee" && c.damage >= 2 && (c.roles.includes("fighter") || c.roles.includes("assassin"))).length,
-    melee: champs.filter((c) => c.attackType === "melee").length,
-    carries: champs.filter((c) => c.isCarry).map((c) => c.name),
+    assassins: pick((c) => c.roles.includes("assassin")).length,
+    divers: pick(isDiver).length,
+    melee: pick((c) => c.attackType === "melee").length,
+    carries: pick((c) => c.isCarry).map((c) => c.name),
+    who: {
+      physical: pick((c) => c.damageType === "physical" && c.damage >= 2).map((c) => c.name),
+      magic: pick((c) => c.damageType === "magic" && c.damage >= 2).map((c) => c.name),
+      healers: healers.map((c) => championWith(c, "heal")),
+      cc: ccChamps.map((c) => championWith(c, "cc")),
+      tanks: pick(isTank).map((c) => c.name),
+      assassins: pick((c) => c.roles.includes("assassin")).map((c) => c.name),
+      divers: pick(isDiver).map((c) => c.name),
+      melee: pick((c) => c.attackType === "melee").map((c) => c.name),
+      squishy: pick((c) => c.durability === 1).map((c) => c.name),
+    },
     notes: [],
   };
 
   const n = champs.length;
+  const w = analysis.who;
   if (n >= 2) {
-    if (physicalShare >= 0.7) analysis.notes.push(`Głównie obrażenia fizyczne (${pct(physicalShare)})`);
-    else if (physicalShare <= 0.3) analysis.notes.push(`Głównie obrażenia magiczne (${pct(1 - physicalShare)})`);
-    else analysis.notes.push(`Zbalansowane obrażenia (AD ${pct(physicalShare)} / AP ${pct(1 - physicalShare)})`);
-    if (analysis.frontline === 0) analysis.notes.push("Brak frontline'u (żadnej wytrzymałej postaci)");
-    if (analysis.healing >= 4) analysis.notes.push("Dużo leczenia – warto mieć Grievous Wounds");
-    if (analysis.hardCC >= n * 1.6) analysis.notes.push("Dużo twardego CC");
-    if (analysis.assassins >= 2) analysis.notes.push("Kilku zabójców – zagrożenie dla miękkich postaci");
+    if (physicalShare >= 0.7) analysis.notes.push(`Głównie obrażenia fizyczne (${pct(physicalShare)}): ${names(w.physical)}`);
+    else if (physicalShare <= 0.3) analysis.notes.push(`Głównie obrażenia magiczne (${pct(1 - physicalShare)}): ${names(w.magic)}`);
+    else analysis.notes.push(`Mieszane obrażenia – AD ${pct(physicalShare)} / AP ${pct(1 - physicalShare)}`);
+    if (analysis.frontline === 0) analysis.notes.push(`Brak tanka – nikt (${names(analysis.champions)}) nie przyjmie obrażeń na froncie`);
+    else analysis.notes.push(`Front: ${names(w.tanks)}`);
+    if (analysis.healing >= 4) analysis.notes.push(`Dużo leczenia: ${names(w.healers.slice(0, 3))}`);
+    if (analysis.hardCC >= n * 1.6) analysis.notes.push(`Dużo twardego CC: ${names(w.cc.slice(0, 3))}`);
+    if (analysis.assassins >= 2) analysis.notes.push(`Zabójcy: ${names(w.assassins)} – groźni dla miękkich postaci`);
   }
   return analysis;
 }

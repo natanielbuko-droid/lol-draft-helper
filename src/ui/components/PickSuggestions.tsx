@@ -1,21 +1,11 @@
 import { useState } from "react";
-import type { PickRecommendation, ScoreBreakdown } from "../../shared/types";
+import type { PickRecommendation, Reason, ScoreBreakdown } from "../../shared/types";
+import { CardHead, pct, plural, ScoreRing, verdict } from "./ui";
 
 /** Ile propozycji pokazujemy od razu – resztę po kliknięciu "Pokaż wszystkie". */
 const INITIAL_VISIBLE = 10;
-
-const pct = (x: number) => `${(x * 100).toFixed(1).replace(".", ",")}%`;
-/** Polska odmiana: 1 mecz, 2–4 mecze, 5+ meczów (ale 12–14 meczów). */
-const matches = (n: number) =>
-  `${n} ${n === 1 ? "mecz" : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? "mecze" : "meczów"}`;
-
-/** Słowna ocena zamiast samej liczby. */
-function verdict(total: number): { label: string; cls: string } {
-  if (total >= 62) return { label: "Świetny wybór", cls: "great" };
-  if (total >= 56) return { label: "Dobry wybór", cls: "good" };
-  if (total >= 48) return { label: "Przyzwoity wybór", cls: "ok" };
-  return { label: "Raczej odradzany", cls: "bad" };
-}
+/** Ile powodów pokazujemy przy postaci (reszta po rozwinięciu). */
+const REASONS_VISIBLE = 4;
 
 function confidenceLabel(c: number): string {
   if (c >= 0.6) return "dużo danych";
@@ -24,35 +14,101 @@ function confidenceLabel(c: number): string {
 }
 
 /** Pasek od -1 do 1 (środek = neutralnie). */
-function Bar({ label, hint, value }: { label: string; hint: string; value: number }) {
+function Meter({ label, hint, value }: { label: string; hint: string; value: number }) {
   const width = Math.abs(value) * 50;
   return (
-    <div className="bar" title={`${label}: ${hint}`}>
+    <div className="meter" title={`${label}: ${hint}`}>
       <span>{label}</span>
-      <div className="track">
-        <div className={`fill ${value >= 0 ? "pos" : "neg"}`} style={value >= 0 ? { left: "50%", width: `${width}%` } : { right: "50%", width: `${width}%` }} />
+      <div className="meter-track">
+        <div className={`meter-fill ${value >= 0 ? "pos" : "neg"}`} style={value >= 0 ? { left: "50%", width: `${width}%` } : { right: "50%", width: `${width}%` }} />
       </div>
     </div>
   );
 }
 
-function Breakdown({ s }: { s: ScoreBreakdown }) {
+function Meters({ s }: { s: ScoreBreakdown }) {
   return (
-    <div className="breakdown">
-      <Bar label="Siła na patchu" hint="winrate i popularność postaci na tej pozycji" value={s.meta} />
-      <Bar label="Przeciw wrogom" hint="jak radzi sobie przeciw wybranym przeciwnikom" value={s.counter} />
-      <Bar label="Z sojusznikami" hint="jak wygrywa razem z Twoją drużyną" value={s.synergy} />
-      <Bar label="Pasuje do składu" hint="czy uzupełnia braki drużyny (obrażenia AD/AP, tank, CC)" value={s.composition} />
+    <div className="meters">
+      <Meter label="Siła na patchu" hint="winrate i popularność postaci na tej pozycji" value={s.meta} />
+      <Meter label="Przeciw wrogom" hint="jak radzi sobie przeciw wybranym przeciwnikom" value={s.counter} />
+      <Meter label="Z sojusznikami" hint="jak wygrywa razem z Twoją drużyną" value={s.synergy} />
+      <Meter label="Pasuje do składu" hint="czy uzupełnia braki drużyny (obrażenia AD/AP, tank, CC)" value={s.composition} />
     </div>
   );
 }
 
-function Stats({ s }: { s: ScoreBreakdown }) {
-  if (s.winrate === null) return <div className="pick-stats muted">Brak meczów w statystykach – ocena na podstawie klasy postaci i składu</div>;
+function Chips({ s }: { s: ScoreBreakdown }) {
+  if (s.winrate === null) return <div className="chips"><span className="chip">Brak meczów w statystykach – ocena z klasy postaci i składu</span></div>;
   return (
-    <div className="pick-stats">
-      Winrate <b>{pct(s.winrate)}</b> · grana w <b>{pct(s.pickRate ?? 0)}</b> gier na tej pozycji · {matches(s.games)} w danych
+    <div className="chips">
+      <span className="chip" title="Odsetek wygranych gier na tej pozycji">
+        Winrate <b>{pct(s.winrate)}</b>
+      </span>
+      <span className="chip" title="Jak często postać jest wybierana na tę pozycję">
+        Popularność <b>{pct(s.pickRate ?? 0)}</b>
+      </span>
+      <span className="chip">{plural(s.games, "mecz", "mecze", "meczów")}</span>
+      <span className={`chip conf ${s.confidence >= 0.6 ? "hi" : s.confidence >= 0.3 ? "mid" : "lo"}`} title="Ile meczów stoi za tą oceną">
+        {confidenceLabel(s.confidence)}
+      </span>
     </div>
+  );
+}
+
+const TONE_ICON: Record<Reason["tone"], string> = { plus: "✓", minus: "✕", info: "i" };
+
+function Reasons({ reasons }: { reasons: Reason[] }) {
+  const [open, setOpen] = useState(false);
+  if (!reasons.length) return null;
+  const shown = open ? reasons : reasons.slice(0, REASONS_VISIBLE);
+  return (
+    <>
+      <ul className="reasons">
+        {shown.map((r) => (
+          <li key={r.text} className={r.tone}>
+            <span className="tone">{TONE_ICON[r.tone]}</span>
+            {r.text}
+          </li>
+        ))}
+      </ul>
+      {reasons.length > REASONS_VISIBLE && (
+        <button className="link" onClick={() => setOpen(!open)}>
+          {open ? "Mniej powodów" : `Wszystkie powody (${reasons.length})`}
+        </button>
+      )}
+    </>
+  );
+}
+
+function PickCard({ p, rank }: { p: PickRecommendation; rank: number }) {
+  const v = verdict(p.score.total);
+  return (
+    <li className={`pick ${rank <= 3 ? "top" : ""}`}>
+      <div className={`rank ${rank <= 3 ? "gold" : ""}`}>#{rank}</div>
+      <div className={`portrait ring-${v.cls}`}>
+        <img src={p.image} alt="" />
+      </div>
+      <div className="pick-body">
+        <div className="pick-title">
+          <h3>{p.name}</h3>
+          <span className={`verdict ${v.cls}`}>{v.label}</span>
+        </div>
+        <Chips s={p.score} />
+        {p.comparison.length > 0 && (
+          <div className="comparison">
+            <span>Na tle pozostałych</span>
+            <ul>
+              {p.comparison.map((c) => (
+                <li key={c}>{c}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <Reasons reasons={p.reasons} />
+        <Meters s={p.score} />
+      </div>
+      <ScoreRing value={p.score.total} />
+    </li>
   );
 }
 
@@ -60,76 +116,44 @@ export function PickSuggestions({ picks }: { picks: PickRecommendation[] }) {
   const [showAll, setShowAll] = useState(false);
   const visible = showAll ? picks : picks.slice(0, INITIAL_VISIBLE);
   return (
-    <div className="card">
-      <h3>
-        Rekomendowane picki <small className="muted">({picks.length} postaci grywalnych na tej pozycji, od najlepszej)</small>
-      </h3>
-      <details className="howto">
-        <summary>Jak czytać ocenę?</summary>
-        <ul>
-          <li>
-            <b>Ocena 0–100</b> łączy cztery rzeczy. 50 to przeciętny wybór, powyżej 60 – bardzo dobry.
-          </li>
-          <li>
-            <b>Siła na patchu</b> – jak często postać wygrywa i jak często jest wybierana na tej pozycji.
-          </li>
-          <li>
-            <b>Przeciw wrogom / Z sojusznikami</b> – czy w meczach z tymi postaciami wygrywa częściej niż zwykle.
-          </li>
-          <li>
-            <b>Pasuje do składu</b> – czy uzupełnia braki drużyny, np. dodaje obrażenia magiczne albo tanka.
-          </li>
-          <li>
-            Zielony pasek w prawo = plus, czerwony w lewo = minus. <b>„Mało danych”</b> oznacza, że ocena opiera się na niewielu meczach
-            – traktuj ją ostrożnie.
-          </li>
-        </ul>
-      </details>
+    <section className="card">
+      <CardHead
+        title="Rekomendowane picki"
+        sub={`${picks.length} postaci grywalnych na tej pozycji, od najlepszej`}
+        right={
+          <details className="howto">
+            <summary>Jak czytać ocenę?</summary>
+            <div className="howto-body">
+              <p>
+                <b>Ocena 0–100</b> łączy cztery rzeczy. 50 to przeciętny wybór, powyżej 60 – bardzo dobry.
+              </p>
+              <p>
+                <b>Siła na patchu</b> – jak często postać wygrywa i jak często jest wybierana na tej pozycji.
+              </p>
+              <p>
+                <b>Przeciw wrogom / Z sojusznikami</b> – czy w meczach z tymi postaciami wygrywa częściej niż zwykle.
+              </p>
+              <p>
+                <b>Pasuje do składu</b> – czy uzupełnia braki drużyny, np. dodaje obrażenia magiczne albo tanka.
+              </p>
+              <p>
+                <span className="tone-inline plus">✓</span> zaleta · <span className="tone-inline minus">✕</span> wada ·{" "}
+                <span className="tone-inline info">i</span> informacja. „Mało danych” – ocena opiera się na niewielu meczach.
+              </p>
+            </div>
+          </details>
+        }
+      />
       <ol className="picks">
-        {visible.map((p, n) => {
-          const v = verdict(p.score.total);
-          return (
-            <li key={p.championId}>
-              <img src={p.image} alt="" />
-              <div className="pick-body">
-                <div className="pick-title">
-                  <span className="rank">#{n + 1}</span>
-                  <b>{p.name}</b>
-                  <span className={`score ${v.cls}`}>{p.score.total}/100</span>
-                  <span className={`verdict ${v.cls}`}>{v.label}</span>
-                  <small className="muted" title="Ile meczów stoi za tą oceną">
-                    · {confidenceLabel(p.score.confidence)}
-                  </small>
-                </div>
-                <Stats s={p.score} />
-                {p.comparison.length > 0 && (
-                  <div className="comparison">
-                    <span>Na tle pozostałych propozycji:</span>
-                    <ul>
-                      {p.comparison.map((c) => (
-                        <li key={c}>{c}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                <Breakdown s={p.score} />
-                {p.reasons.length > 0 && (
-                  <ul className="reasons">
-                    {p.reasons.slice(0, 4).map((r) => (
-                      <li key={r}>{r}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </li>
-          );
-        })}
+        {visible.map((p, n) => (
+          <PickCard key={p.championId} p={p} rank={n + 1} />
+        ))}
       </ol>
       {picks.length > INITIAL_VISIBLE && (
-        <button className="secondary" onClick={() => setShowAll(!showAll)}>
+        <button className="secondary wide" onClick={() => setShowAll(!showAll)}>
           {showAll ? "Pokaż tylko najlepsze" : `Pokaż wszystkie (${picks.length})`}
         </button>
       )}
-    </div>
+    </section>
   );
 }

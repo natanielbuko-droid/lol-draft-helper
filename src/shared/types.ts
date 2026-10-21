@@ -12,6 +12,15 @@ export const POSITION_LABEL: Record<Position, string> = {
   UTILITY: "Support",
 };
 
+/** Umiejętność postaci z cechami wykrytymi z jej opisu. */
+export interface AbilityInfo {
+  slot: "P" | "Q" | "W" | "E" | "R";
+  name: string; // w języku UI
+  cc: boolean; // twarde CC: ogłuszenie, podrzucenie, unieruchomienie...
+  heal: boolean; // leczenie / kradzież życia
+  dash: boolean; // doskok, skok, teleport
+}
+
 /** Profil postaci zbudowany automatycznie z Data Dragon + CommunityDragon (nic nie jest wpisane ręcznie). */
 export interface ChampionProfile {
   id: number;
@@ -33,6 +42,8 @@ export interface ChampionProfile {
   hardCC: number;
   /** "Carry" = duże obrażenia i mała wytrzymałość – postać, którą drużyna musi chronić. */
   isCarry: boolean;
+  /** Pasywka i Q/W/E/R – do konkretnych opisów ("ma doskok: E – Bezwzględny Pościg"). */
+  abilities: AbilityInfo[];
 }
 
 export interface DraftSlot {
@@ -72,12 +83,18 @@ export interface ScoreBreakdown {
   pickRate: number | null;
 }
 
+/** Powód oceny z "tonem": zaleta, wada albo informacja (UI koloruje je różnie). */
+export interface Reason {
+  text: string;
+  tone: "plus" | "minus" | "info";
+}
+
 export interface PickRecommendation {
   championId: number;
   name: string;
   image: string;
   score: ScoreBreakdown;
-  reasons: string[];
+  reasons: Reason[];
   /** Porównanie z pozostałymi propozycjami: dlaczego ta postać jest wyżej/niżej i w czym się wyróżnia. */
   comparison: string[];
 }
@@ -190,6 +207,18 @@ export interface TeamAnalysis {
   divers: number;
   melee: number;
   carries: string[];
+  /** KTO odpowiada za daną cechę – do konkretnych opisów (np. leczący z nazwami umiejętności). */
+  who: {
+    physical: string[];
+    magic: string[];
+    healers: string[];
+    cc: string[];
+    tanks: string[];
+    assassins: string[];
+    divers: string[];
+    melee: string[];
+    squishy: string[];
+  };
   notes: string[];
 }
 

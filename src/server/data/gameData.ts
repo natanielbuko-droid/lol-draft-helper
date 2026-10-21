@@ -87,7 +87,7 @@ export class GameData extends EventEmitter {
     const champions = new Map<number, ChampionProfile>();
     const byKey = new Map<string, ChampionProfile>();
     for (const c of Object.values(dd.champions)) {
-      const profile = buildChampionProfile(c, cd.get(Number(c.key)), dd.championNames[c.key], dd.version);
+      const profile = buildChampionProfile(c, cd.get(Number(c.key)), dd.championNames[c.key], dd.version, dd.abilityNames[c.key]);
       champions.set(profile.id, profile);
       byKey.set(profile.key, profile);
     }

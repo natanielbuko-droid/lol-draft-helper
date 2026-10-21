@@ -1,4 +1,4 @@
-import type { ChampionProfile } from "../../shared/types";
+import type { AbilityInfo, ChampionProfile } from "../../shared/types";
 import type { CDragonChampion } from "./cdragon";
 import type { DDragonChampion } from "./ddragon";
 import { img } from "./ddragon";
@@ -8,6 +8,7 @@ const stripTags = (s: string) => s.replace(/<[^>]+>/g, " ");
 // Frazy, które zawierają słowo "heal", ale oznaczają osłabianie leczenia przeciwnika.
 const ANTI_HEAL = /grievous wounds|reduc\w* (?:\w+ )?heal\w*|wounds/gi;
 const HEALING = /\bheal(?:s|ing|ed)?\b|restores? .{0,25}health|omnivamp|life ?steal|physical vamp|drains?\b/i;
+const DASH = /\bdash(?:es|ing)?\b|\bleaps?\b|\bblinks?\b|\bjumps?\b|\blunges?\b|\bteleports?\b/i;
 const HARD_CC =
   /\bstun|knock(?:s|ed|ing)? (?:up|back|aside)|airborne|suppress|\bcharm|\btaunt|\bfear|\bflee|\bsleep|\broot|\bsnare|immobiliz|\bpulls?\b|\bground(?:s|ed)?\b/i;
 
@@ -20,6 +21,7 @@ export function buildChampionProfile(
   cd: CDragonChampion | undefined,
   displayName: string | undefined,
   version: string,
+  abilityNames?: { passive: string; spells: string[] },
 ): ChampionProfile {
   const id = Number(dd.key);
   const roles = cd?.roles?.length ? cd.roles : dd.tags.map((t) => t.toLowerCase());
@@ -40,6 +42,18 @@ export function buildChampionProfile(
   const healingSpells = texts.filter((t) => HEALING.test(t.replace(ANTI_HEAL, ""))).length;
   const hardCC = texts.filter((t) => HARD_CC.test(t)).length;
 
+  // Pasywka + Q/W/E/R z nazwą w języku UI i cechami wykrytymi z opisu.
+  const slots: AbilityInfo["slot"][] = ["P", "Q", "W", "E", "R"];
+  const cdNames = cd ? [cd.passive.name, ...cd.spells.map((s) => s.name)] : [];
+  const localNames = abilityNames ? [abilityNames.passive, ...abilityNames.spells] : [];
+  const abilities: AbilityInfo[] = texts.map((t, i) => ({
+    slot: slots[i],
+    name: localNames[i] ?? cdNames[i] ?? slots[i],
+    cc: HARD_CC.test(t),
+    heal: HEALING.test(t.replace(ANTI_HEAL, "")),
+    dash: DASH.test(t),
+  }));
+
   return {
     id,
     key: dd.id,
@@ -56,5 +70,6 @@ export function buildChampionProfile(
     healing: Math.min(3, healingSpells),
     hardCC,
     isCarry: ps.damage === 3 && ps.durability === 1,
+    abilities,
   };
 }

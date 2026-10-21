@@ -16,68 +16,85 @@ const PHASE_BANNER: Record<string, string> = {
   EndOfGame: "Koniec gry",
 };
 
+function Empty({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="empty-state">
+      <svg viewBox="0 0 32 32" aria-hidden>
+        <path d="M16 2l12 7v14l-12 7-12-7V9z" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M16 9l6 3.5v7L16 23l-6-3.5v-7z" fill="currentColor" opacity=".35" />
+      </svg>
+      <h2>{title}</h2>
+      <p>{children}</p>
+    </div>
+  );
+}
+
 /**
  * Struktura UI:
  *   Header          – status połączenia z klientem LoL, patch, źródło statystyk
  *   DraftBoard      – obie drużyny i bany
- *   PickSuggestions – ranking picków z rozbiciem punktacji
- *   BuildPanel      – przedmioty core/sytuacyjne, runy, czary, kolejność umiejętności
- *   TeamPanel       – analiza składów (AD/AP, CC, leczenie, frontline)
+ *   TeamPanel       – analiza składów (AD/AP, CC, leczenie, tanki, zabójcy)
+ *   ScenarioCards   – idealny / neutralny / koszmarny wybór
+ *   PickSuggestions – pełny ranking picków z powodami i porównaniem
+ *   BuildPanel      – przedmioty, sytuacyjne, runy, czary, umiejętności + alternatywy
  */
 export function App() {
   const { state, online } = useAppState();
 
   if (!online || !state) {
     return (
-      <div className="center">
-        <h2>Łączenie z serwerem aplikacji…</h2>
-        <p className="muted">Uruchom serwer poleceniem <code>npm run dev</code> lub <code>npm run dev:mock</code>.</p>
+      <div className="app">
+        <Empty title="Łączenie z aplikacją…">
+          Uruchom aplikację plikiem <code>start.bat</code> (albo <code>demo.bat</code>, żeby zobaczyć tryb demo).
+        </Empty>
       </div>
     );
   }
 
   const { draft } = state;
+  const champion = state.build ? state.champions[state.build.championId] : undefined;
   return (
     <div className="app">
       <Header state={state} />
       {!draft ? (
-        <div className="center">
-          <h2>Czekam na champ select</h2>
-          <p className="muted">
-            Faza klienta: <b>{state.gameflowPhase}</b>. Rekomendacje pojawią się automatycznie, gdy wejdziesz do wyboru postaci.
-          </p>
-        </div>
+        <Empty title="Czekam na wybór postaci">
+          Rekomendacje pojawią się same, gdy wejdziesz do champ selectu. Faza klienta: <b>{state.gameflowPhase}</b>.
+        </Empty>
       ) : state.gameflowPhase !== "ChampSelect" ? (
         // Po champ selekcie (gra, ekran końcowy, lobby) – na pierwszym planie build z ostatniego draftu.
         <>
           <div className="banner">
-            {PHASE_BANNER[state.gameflowPhase] ?? "Champ select zakończony"} – poniżej Twój build z ostatniego wyboru postaci.
+            <b>{PHASE_BANNER[state.gameflowPhase] ?? "Champ select zakończony"}</b> – poniżej Twój build z ostatniego wyboru postaci.
           </div>
           <main className="grid in-game">
-            <section className="col">
-              {state.build ? <BuildPanel build={state.build} /> : <div className="card muted">Nie wybrano postaci w ostatnim champ selekcie.</div>}
-            </section>
-            <section className="col">
+            <div className="col">
+              {state.build ? <BuildPanel build={state.build} champion={champion} /> : <div className="card muted">Nie wybrano postaci w ostatnim champ selekcie.</div>}
+            </div>
+            <div className="col">
               <TeamPanel ally={state.allyAnalysis} enemy={state.enemyAnalysis} />
               <DraftBoard draft={draft} champions={state.champions} />
-            </section>
+            </div>
           </main>
         </>
       ) : (
         <main className="grid">
-          <section className="col">
+          <div className="col">
             <DraftBoard draft={draft} champions={state.champions} />
             <TeamPanel ally={state.allyAnalysis} enemy={state.enemyAnalysis} />
-          </section>
-          <section className="col">
+          </div>
+          <div className="col">
             <ScenarioCards scenarios={state.scenarios} />
             {state.picks.length > 0 && <PickSuggestions picks={state.picks} />}
-            {state.build ? <BuildPanel build={state.build} /> : <div className="card muted">Najedź na postać (hover), aby zobaczyć build.</div>}
-          </section>
+            {state.build ? (
+              <BuildPanel build={state.build} champion={champion} />
+            ) : (
+              <div className="card hint-card">Najedź na postać w kliencie (hover), aby zobaczyć jej build.</div>
+            )}
+          </div>
         </main>
       )}
       {/* Informacja wymagana przez zasady Riot Games dla aplikacji fanowskich */}
-      <footer className="legal muted">
+      <footer className="legal">
         LoL Draft Helper isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially
         involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or
         registered trademarks of Riot Games, Inc.

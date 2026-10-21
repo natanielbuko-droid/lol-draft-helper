@@ -56,6 +56,8 @@ export interface DDragonBundle {
   summoners: Record<string, DDragonSummoner>;
   summonerNames: Record<string, string>;
   runes: DDragonRuneTree[];
+  /** Nazwy umiejętności w języku UI: klucz postaci (np. "222") -> pasywka + Q/W/E/R. */
+  abilityNames: Record<string, { passive: string; spells: string[] }>;
 }
 
 export async function getLatestVersion(): Promise<string> {
@@ -88,8 +90,22 @@ export async function loadDDragon(version: string, displayLocale: string, cacheD
     return out;
   };
 
+  // Nazwy umiejętności – jeden plik z pełnymi danymi postaci (ok. 2,4 MB, w cache per patch).
+  type FullChampion = { key: string; passive: { name: string }; spells: { name: string }[] };
+  const abilityNames: DDragonBundle["abilityNames"] = {};
+  for (const locale of [displayLocale, "en_US"]) {
+    try {
+      const full = await get<Wrapped<FullChampion>>(locale, "championFull.json");
+      for (const c of Object.values(full.data)) abilityNames[c.key] = { passive: c.passive.name, spells: c.spells.map((s) => s.name) };
+      break;
+    } catch {
+      /* próbujemy kolejnego języka */
+    }
+  }
+
   return {
     version,
+    abilityNames,
     champions: champions.data,
     championNames: await names<DDragonChampion>("champion.json", (_k, v) => v.key),
     items: items.data,
