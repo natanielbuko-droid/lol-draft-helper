@@ -1,6 +1,6 @@
 import path from "node:path";
 import type { AppState } from "../shared/types";
-import { startApiServer } from "./api/server";
+import { choosePort, openUrl, startApiServer } from "./api/server";
 import { loadConfig } from "./config";
 import { GameData } from "./data/gameData";
 import { StatsStore } from "./data/statsStore";
@@ -20,6 +20,21 @@ import { crawl } from "../crawler/crawl";
  */
 async function main() {
   const cfg = loadConfig();
+
+  // Najpierw port: druga kopia aplikacji nie startuje – tylko otwiera już działającą w przeglądarce.
+  const choice = await choosePort(cfg.port);
+  if ("alreadyRunning" in choice) {
+    const url = `http://localhost:${choice.alreadyRunning}`;
+    console.log(`[api] LoL Draft Helper już działa w innym oknie (${url}).`);
+    if (cfg.openBrowser) {
+      openUrl(url);
+      console.log("[api] Otworzyłem go w przeglądarce – to okno możesz zamknąć.");
+    }
+    return;
+  }
+  if (choice.port !== cfg.port) console.warn(`[api] Port ${cfg.port} jest zajęty przez inny program – używam portu ${choice.port}.`);
+  cfg.port = choice.port;
+
   const data = new GameData(path.join(cfg.dataDir, "cache"), cfg.displayLocale);
   const stats = new StatsStore(cfg.dataDir, cfg.statsUrl, path.resolve("seed", "stats.json"));
   await Promise.all([data.init(), stats.load()]);

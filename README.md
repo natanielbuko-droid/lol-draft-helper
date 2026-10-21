@@ -37,7 +37,8 @@ z wysokich lig, więc traktuj je jako wskazówkę, a nie wyrocznię (aplikacja p
 | `start.bat` „nie chce się włączyć”, okno mignie i znika albo pisze „Brakuje plików aplikacji” | plik został uruchomiony prosto z ZIP-a. Kliknij prawym na pobrany ZIP → **Wyodrębnij wszystkie…**, otwórz rozpakowany folder `lol-draft-helper-main` i uruchom `start.bat` stamtąd |
 | Niebieskie okno „System Windows ochronił ten komputer” | to standardowe ostrzeżenie dla plików z internetu: kliknij **Więcej informacji → Uruchom mimo to** |
 | „Nie znaleziono Node.js” | zainstaluj Node.js LTS i uruchom plik ponownie |
-| „Port 4777 jest zajęty” | aplikacja działa już w innym oknie – zamknij je |
+| „LoL Draft Helper już działa w innym oknie” | aplikacja jest już uruchomiona – otworzy się w przeglądarce, a nowe okno możesz zamknąć |
+| „Port 4777 jest zajęty przez inny program – używam portu 4778” | wszystko w porządku – aplikacja sama wybrała wolny port |
 | `npm : File ... npm.ps1 cannot be loaded` w PowerShellu | używaj plików `.bat` albo wpisuj `npm.cmd` zamiast `npm` |
 | „Czekam na klienta League of Legends” | włącz klienta gry; jeśli gra jest w nietypowym folderze, ustaw zmienną `LOL_PATH` |
 
