@@ -46,6 +46,15 @@ function coreOrder(timeline: TimelineDto, participantId: number, isCore: (id: st
   return seq.length >= 3 ? seq.slice(0, 3).join(">") : null;
 }
 
+/** Przedmioty kupione na starcie (pierwsze 90 s gry), np. "1055+2003". */
+function starterKey(timeline: TimelineDto, participantId: number): string | null {
+  const bought: number[] = [];
+  for (const f of timeline.info.frames)
+    for (const e of f.events)
+      if (e.type === "ITEM_PURCHASED" && e.participantId === participantId && e.itemId && e.timestamp < 90_000) bought.push(e.itemId);
+  return bought.length ? bought.sort((a, b) => a - b).join("+") : null;
+}
+
 function runeKey(p: MatchParticipant): string | null {
   const primary = p.perks.styles.find((s) => s.description === "primaryStyle");
   const sub = p.perks.styles.find((s) => s.description === "subStyle");
@@ -90,6 +99,8 @@ export function addMatch(stats: StatsFile, match: MatchDto, timeline: TimelineDt
       if (so) bump(b.skillOrders, so, p.win);
       const co = coreOrder(timeline, p.participantId, isCoreItem);
       if (co) bump(b.coreOrders, co, p.win);
+      const st = starterKey(timeline, p.participantId);
+      if (st) bump((b.starters ??= {}), st, p.win);
     }
   }
   return true;

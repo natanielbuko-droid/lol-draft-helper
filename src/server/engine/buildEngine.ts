@@ -4,11 +4,13 @@ import type {
   ItemRef,
   Position,
   RuneRecommendation,
+  RuneRef,
   SituationalItem,
+  Skill,
   SpellRef,
   TeamAnalysis,
 } from "../../shared/types";
-import { img } from "../data/ddragon";
+import { cdragonAsset } from "../data/cdragon";
 import type { GameData } from "../data/gameData";
 import type { CatalogItem } from "../data/itemCatalog";
 import { smoothedWinrate, type BuildStats, type WL } from "../data/statsStore";
@@ -170,50 +172,132 @@ const RUNE_HEURISTIC: Record<Archetype, [string, string[], string]> = {
   enchanter: ["Sorcery", ["SummonAery"], "Resolve"],
 };
 
-function chooseRunes(arch: Archetype, position: Position, data: GameData, bs: BuildStats | undefined): RuneRecommendation | null {
-  const trees = data.runeTrees;
-  const perkById = new Map(trees.flatMap((t) => t.slots.flatMap((s) => s.runes)).map((r) => [r.id, r]));
+/** Preferowane odłamki (atak / elastyczny / obrona) – ID z plików klienta; niedostępny zastępuje pierwszy w rzędzie. */
+const SHARD_PREFERENCE: Record<Archetype, [number, number, number]> = {
+  marksman: [5005, 5008, 5011],
+  ad_assassin: [5008, 5008, 5011],
+  ad_fighter: [5008, 5008, 5011],
+  ap_mage: [5008, 5008, 5011],
+  ap_assassin: [5008, 5008, 5011],
+  ap_fighter: [5008, 5008, 5011],
+  tank: [5007, 5008, 5011],
+  enchanter: [5007, 5008, 5011],
+};
 
-  // Ze statystyk: "primaryStyle|subStyle|perk,perk,..." – pełna strona, którą można zaimportować.
+/** Składa pełną stronę run (9 run) z nazwami i ikonami. Zwraca null, gdy któraś runa nie istnieje w bieżącym patchu. */
+function runePage(
+  perkIds: number[],
+  primaryStyleId: number,
+  subStyleId: number,
+  data: GameData,
+  source: "stats" | "heuristic",
+): RuneRecommendation | null {
+  const pt = data.perkStyles.find((s) => s.id === primaryStyleId);
+  const st = data.perkStyles.find((s) => s.id === subStyleId);
+  const perks = perkIds.map((id) => data.perks.get(id));
+  if (!pt || !st || perkIds.length !== 9 || perks.some((p) => !p)) return null;
+  const all = perks as RuneRef[];
+  const tree = (s: typeof pt): RuneRef => ({ id: s.id, name: s.name, image: cdragonAsset(s.iconPath) });
+  return {
+    primaryTree: tree(pt),
+    secondaryTree: tree(st),
+    primary: all.slice(0, 4),
+    secondary: all.slice(4, 6),
+    shards: all.slice(6, 9),
+    perkIds,
+    primaryStyleId,
+    subStyleId,
+    source,
+  };
+}
+
+function chooseRunes(arch: Archetype, position: Position, data: GameData, bs: BuildStats | undefined): RuneRecommendation | null {
+  // Ze statystyk: "primaryStyle|subStyle|perk,perk,..." – najczęstsza skuteczna strona run.
   const fromStats = bestEntry(bs?.runes);
   if (fromStats) {
     const [primary, sub, perks] = fromStats.split("|");
-    const perkIds = perks.split(",").map(Number);
-    const ks = perkById.get(perkIds[0]);
-    const pt = trees.find((t) => t.id === Number(primary));
-    const st = trees.find((t) => t.id === Number(sub));
-    if (ks && pt && st && perkIds.length === 9) {
-      return {
-        primaryTree: pt.name,
-        keystone: ks.name,
-        keystoneImage: img.rune(ks.icon),
-        secondaryTree: st.name,
-        perkIds,
-        primaryStyleId: pt.id,
-        subStyleId: st.id,
-        source: "stats",
-      };
-    }
+    const page = runePage(perks.split(",").map(Number), Number(primary), Number(sub), data, "stats");
+    if (page) return page;
   }
 
-  // Heurystyka: drzewo i keystone wg archetypu. Gdy rune usunięto w nowym patchu – bierzemy pierwszą dostępną.
+  // Heurystyka: drzewo i kamień węgielny wg archetypu, pozostałe rzędy – pierwsza runa w rzędzie.
+  // Gdy runę usunięto w nowym patchu – bierzemy pierwszą dostępną, więc strona zawsze jest poprawna.
   let [primaryKey, keystones, secondaryKey] = RUNE_HEURISTIC[arch];
   if (position === "UTILITY" && arch === "tank") keystones = ["Aftershock", "Guardian"];
-  const pt = trees.find((t) => t.key === primaryKey) ?? trees[0];
-  const st = trees.find((t) => t.key === secondaryKey && t.id !== pt?.id) ?? trees.find((t) => t.id !== pt?.id);
-  if (!pt || !st) return null;
-  const slot0 = pt.slots[0].runes;
-  const ks = keystones.map((k) => slot0.find((r) => r.key === k)).find((r) => !!r) ?? slot0[0];
-  return {
-    primaryTree: pt.name,
-    keystone: ks.name,
-    keystoneImage: img.rune(ks.icon),
-    secondaryTree: st.name,
-    perkIds: [],
-    primaryStyleId: pt.id,
-    subStyleId: st.id,
-    source: "heuristic",
-  };
+  const trees = data.runeTrees;
+  const ddPrimary = trees.find((t) => t.key === primaryKey) ?? trees[0];
+  const ddSecondary = trees.find((t) => t.key === secondaryKey && t.id !== ddPrimary?.id) ?? trees.find((t) => t.id !== ddPrimary?.id);
+  const pt = data.perkStyles.find((s) => s.id === ddPrimary?.id);
+  const st = data.perkStyles.find((s) => s.id === ddSecondary?.id);
+  if (!ddPrimary || !pt || !st) return null;
+
+  const slot0 = ddPrimary.slots[0].runes;
+  const keystone = keystones.map((k) => slot0.find((r) => r.key === k)).find((r) => !!r) ?? slot0[0];
+  const regularRows = (s: typeof pt) => s.slots.filter((x) => x.type !== "kKeyStone" && x.type !== "kStatMod");
+  const shards = pt.slots
+    .filter((x) => x.type === "kStatMod")
+    .map((row, i) => (row.perks.includes(SHARD_PREFERENCE[arch][i]) ? SHARD_PREFERENCE[arch][i] : row.perks[0]));
+  const perkIds = [
+    keystone.id,
+    ...regularRows(pt).slice(0, 3).map((r) => r.perks[0]),
+    ...regularRows(st).slice(0, 2).map((r) => r.perks[0]),
+    ...shards,
+  ];
+  return runePage(perkIds, pt.id, st.id, data, "heuristic");
+}
+
+// ---------------------------------------------------------- SKILL ORDER ---
+
+/**
+ * Rozpisuje kolejność maksowania na poziomy 1–18: najpierw po jednym punkcie w każdą umiejętność,
+ * R na 6/11/16, potem maksowanie w podanej kolejności. Umiejętność może mieć najwyżej
+ * floor((poziom+1)/2) punktów (zasada gry: 5. poziom umiejętności dopiero na 9. poziomie postaci).
+ */
+export function skillLevels(max: Skill[]): Skill[] {
+  const points: Record<Skill, number> = { Q: 0, W: 0, E: 0, R: 0 };
+  const levels: Skill[] = [];
+  for (let lvl = 1; lvl <= 18; lvl++) {
+    const cap = Math.floor((lvl + 1) / 2);
+    const skill: Skill = [6, 11, 16].includes(lvl)
+      ? "R"
+      : lvl <= 3
+        ? max[lvl - 1]
+        : (max.find((s) => points[s] < 5 && points[s] < cap) ?? max.find((s) => points[s] < 5) ?? max[0]);
+    points[skill]++;
+    levels.push(skill);
+  }
+  return levels;
+}
+
+// ----------------------------------------------------------- FULL BUILD ---
+
+/** Dwa kolejne przedmioty po core – razem z core i butami pełny build na 6 slotów. */
+function lateItems(arch: Archetype, items: Map<string, CatalogItem>, bs: BuildStats | undefined, exclude: Set<string>): CatalogItem[] {
+  const usable = (i: CatalogItem | undefined): i is CatalogItem => !!i && i.isCompleted && !i.isBoots && !exclude.has(i.id);
+  if (bs) {
+    const fromStats = Object.entries(bs.items)
+      .filter(([, wl]) => wl.games >= 3)
+      .sort((a, b) => b[1].games - a[1].games)
+      .map(([id]) => items.get(id))
+      .filter(usable)
+      .slice(0, 2);
+    if (fromStats.length === 2) return fromStats;
+  }
+  return [...items.values()]
+    .filter(usable)
+    .filter((i) => !(i.flags.antiHeal || i.flags.cleanse || i.flags.stasis || i.flags.lifeline || i.flags.spellShield))
+    .map((i) => ({ i, fit: itemFit(i, arch) }))
+    .sort((a, b) => b.fit - a.fit || b.i.gold - a.i.gold)
+    .slice(0, 2)
+    .map((x) => x.i);
+}
+
+/** Przedmioty startowe – tylko ze statystyk (crawler z osiami czasu meczów). */
+function starterItems(data: GameData, bs: BuildStats | undefined): ItemRef[] {
+  const key = bestEntry(bs?.starters);
+  if (!key) return [];
+  const refs = key.split("+").map((id) => data.itemRefs.get(id));
+  return refs.every((r) => !!r) ? (refs as ItemRef[]) : [];
 }
 
 // ------------------------------------------------------------ PUBLIC API ---
@@ -232,16 +316,16 @@ export function recommendBuild(
 
   const { core, fromStats } = coreItems(arch, data.items, bs);
   const { boots, reason: bootsReason } = chooseBoots(arch, enemy, data.items, bs);
-  const situational = situationalItems({ me, arch, enemy }, data.items, new Set(core.map((i) => i.id)));
+  const late = lateItems(arch, data.items, bs, new Set(core.map((i) => i.id)));
+  const situational = situationalItems({ me, arch, enemy }, data.items, new Set([...core, ...late].map((i) => i.id)));
   const { spells, reason: summonerReason } = chooseSummoners(me, position, enemy, data, bs);
   const runes = chooseRunes(arch, position, data, bs);
 
   const skill = bestEntry(bs?.skillOrders);
-  const skillOrder = skill
-    ? { order: `R > ${skill.split("").join(" > ")}`, source: "stats" as const }
-    : { order: "R > Q > W > E (ogólna reguła)", source: "heuristic" as const };
+  const max = (skill ? skill.split("") : ["Q", "W", "E"]) as Skill[];
+  const skillOrder = { max, levels: skillLevels(max), source: skill ? ("stats" as const) : ("heuristic" as const) };
 
-  if (!fromStats) notes.push("Brak statystyk dla tej postaci/pozycji – core build dobrany heurystycznie ze statystyk przedmiotów.");
+  if (!fromStats) notes.push("Brak statystyk dla tej postaci na tej pozycji – build dobrany na podstawie statystyk przedmiotów.");
   if (bootsReason) notes.push(bootsReason);
   if (!enemies.length) notes.push("Przeciwnicy jeszcze nie wybrali postaci – przedmioty sytuacyjne pojawią się po ich pickach.");
   notes.push(...enemy.notes.map((n) => `Wróg: ${n}`));
@@ -250,8 +334,10 @@ export function recommendBuild(
     championId: me.id,
     championName: me.name,
     position,
+    starters: starterItems(data, bs),
     core: core.map(toRef),
     boots: boots ? toRef(boots) : null,
+    late: late.map(toRef),
     situational,
     summonerSpells: spells.map((s): SpellRef => ({ id: s.id, name: s.name, image: s.image })),
     summonerReason,

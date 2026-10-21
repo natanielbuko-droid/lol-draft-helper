@@ -1,8 +1,8 @@
 import { EventEmitter } from "node:events";
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { ChampionProfile } from "../../shared/types";
-import { loadCDragonChampions } from "./cdragon";
+import type { ChampionProfile, ItemRef, RuneRef } from "../../shared/types";
+import { cdragonAsset, loadCDragonChampions, loadCDragonPerks, type CDragonPerkStyle } from "./cdragon";
 import { buildChampionProfile } from "./championProfile";
 import { getLatestVersion, img, loadDDragon, type DDragonBundle, type DDragonRuneTree } from "./ddragon";
 import { buildItemCatalog, type CatalogItem } from "./itemCatalog";
@@ -23,8 +23,13 @@ export class GameData extends EventEmitter {
   champions = new Map<number, ChampionProfile>();
   championsByKey = new Map<string, ChampionProfile>();
   items = new Map<string, CatalogItem>();
+  /** Wszystkie przedmioty z Summoner's Rift (także mikstury i inne zużywalne) – do wyświetlania przedmiotów startowych. */
+  itemRefs = new Map<string, ItemRef>();
   summoners = new Map<string, SummonerSpell>();
   runeTrees: DDragonRuneTree[] = [];
+  /** Wszystkie runy i odłamki (nazwa w języku UI + ikona) oraz drzewa run z rzędami – z CommunityDragon. */
+  perks = new Map<number, RuneRef>();
+  perkStyles: CDragonPerkStyle[] = [];
   private timer: NodeJS.Timeout | null = null;
 
   constructor(
@@ -67,8 +72,13 @@ export class GameData extends EventEmitter {
     console.log(`[data] Ładowanie danych patcha ${version}...`);
     const dd = await loadDDragon(version, this.displayLocale, this.cacheDir);
     const ids = Object.values(dd.champions).map((c) => Number(c.key));
-    const cd = await loadCDragonChampions(ids, version, path.join(this.cacheDir));
+    const [cd, perks] = await Promise.all([
+      loadCDragonChampions(ids, version, path.join(this.cacheDir)),
+      loadCDragonPerks(version, this.cacheDir, this.displayLocale),
+    ]);
     this.apply(dd, cd);
+    this.perks = new Map(perks.perks.map((p) => [p.id, { id: p.id, name: p.name, image: cdragonAsset(p.iconPath) }]));
+    this.perkStyles = perks.styles;
     console.log(`[data] Gotowe: ${this.champions.size} postaci, ${this.items.size} przedmiotów (patch ${version}).`);
     this.emit("updated", version);
   }
@@ -92,6 +102,11 @@ export class GameData extends EventEmitter {
     this.champions = champions;
     this.championsByKey = byKey;
     this.items = buildItemCatalog(dd.items, dd.itemNames, dd.version);
+    this.itemRefs = new Map(
+      Object.entries(dd.items)
+        .filter(([, it]) => it.maps["11"])
+        .map(([id, it]) => [id, { id, name: dd.itemNames[id] ?? it.name, image: img.item(dd.version, it.image.full), gold: it.gold.total }]),
+    );
     this.summoners = summoners;
     this.runeTrees = dd.runes;
   }

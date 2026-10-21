@@ -4,12 +4,23 @@ import type { GameData } from "../data/gameData";
 import { smoothedWinrate, type StatsStore } from "../data/statsStore";
 import { analyzeTeam, heuristicPositionFit, inferPositions } from "./teamAnalysis";
 
-/** Wagi składowych oceny. Gdy brak statystyk, liczy się tylko analiza składu. */
-export const WEIGHTS_WITH_STATS = { meta: 0.25, counter: 0.3, synergy: 0.15, composition: 0.3 };
+/**
+ * Wagi składowych oceny. Meta (winrate + popularność) waży najwięcej, bo jest najlepiej udokumentowana danymi;
+ * heurystyka składu tylko "dopasowuje" ranking, żeby nie wypychała na górę picków spoza mety.
+ * Gdy brak statystyk, liczy się dopasowanie klasy do pozycji i analiza składu.
+ */
+export const WEIGHTS_WITH_STATS = { meta: 0.35, counter: 0.25, synergy: 0.15, composition: 0.25 };
 export const WEIGHTS_NO_STATS = { meta: 0.3, counter: 0, synergy: 0, composition: 0.7 };
 
+/** Postać musi mieć co najmniej tyle procent gier na pozycji, żeby trafić do puli (odcina picki spoza mety). */
+export const MIN_PICK_RATE = 0.008;
+
 const clamp = (x: number, lo = -1, hi = 1) => Math.max(lo, Math.min(hi, x));
-const pp = (x: number) => `${x >= 0 ? "+" : ""}${(x * 100).toFixed(1)} pp`;
+/** 0.0271 -> "2,7%" – zapis zrozumiały dla gracza. */
+const pct = (x: number) => `${(Math.abs(x) * 100).toFixed(1).replace(".", ",")}%`;
+/** Polska odmiana: 1 mecz, 2–4 mecze, 5+ meczów (ale 12–14 meczów). */
+const matches = (n: number) =>
+  `${n} ${n === 1 ? "mecz" : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? "mecze" : "meczów"}`;
 
 interface ScorePart {
   value: number;
@@ -84,6 +95,9 @@ export interface PickContext {
   enemyPositions: Map<number, Position>;
   allyAnalysis: TeamAnalysis;
   enemyAnalysis: TeamAnalysis;
+  /** Wszystkie gry na tej pozycji w statystykach i średni udział jednej postaci (do oceny popularności). */
+  positionGames: number;
+  avgPickRate: number;
 }
 
 /** Pełna ocena jednej postaci: Meta + Counter + Synergy + Composition. */
@@ -91,12 +105,24 @@ export function scoreChampion(c: ChampionProfile, ctx: PickContext, stats: Stats
   const reasons: string[] = [];
   const W = stats.hasData ? WEIGHTS_WITH_STATS : WEIGHTS_NO_STATS;
 
-  // --- META: wygładzony winrate na tej pozycji w bieżącym patchu ---
+  // --- META: siła na patchu = wygładzony winrate + popularność na tej pozycji ---
+  // Sam winrate z małej próbki (np. 34 gry po 70%) to głównie szczęście; popularność mówi,
+  // czy postać faktycznie jest grana na tej pozycji przez dobrych graczy.
   const base = stats.championWL(c.id, ctx.position);
-  const baseWr = smoothedWinrate(base, 100);
-  // Bez statystyk "meta" zastępuje dopasowanie klasy postaci do pozycji (np. strzelec na ADC).
-  const meta = stats.hasData ? clamp((baseWr - 0.5) / 0.04) : clamp((heuristicPositionFit(c, ctx.position) - 0.6) * 2);
-  if (base && base.games >= 50) reasons.push(`Winrate na patchu: ${(baseWr * 100).toFixed(1)}% (${base.games} gier)`);
+  const baseWr = smoothedWinrate(base, 150);
+  const games = base?.games ?? 0;
+  const pickRate = ctx.positionGames ? games / ctx.positionGames : 0;
+  let meta: number;
+  if (stats.hasData) {
+    const wrScore = clamp((baseWr - 0.5) / 0.04);
+    const popScore = pickRate > 0 ? clamp(Math.log2(pickRate / ctx.avgPickRate) / 2) : -1;
+    meta = 0.6 * wrScore + 0.4 * popScore;
+    // Winrate i popularność UI pokazuje w osobnej linii – tu tylko ostrzeżenie o rzadkim picku.
+    if (popScore <= -0.6 && games > 0) reasons.push(`Rzadki wybór (${pct(pickRate)} gier na tej pozycji, ${matches(games)}) – ocena mniej pewna`);
+  } else {
+    // Bez statystyk "meta" zastępuje dopasowanie klasy postaci do pozycji (np. strzelec na ADC).
+    meta = clamp((heuristicPositionFit(c, ctx.position) - 0.6) * 2);
+  }
 
   // --- COUNTER: jak radzi sobie przeciw wybranym wrogom (przeciwnik z linii liczy się podwójnie) ---
   let counterSum = 0;
@@ -111,8 +137,8 @@ export function scoreChampion(c: ChampionProfile, ctx: PickContext, stats: Stats
     counterSum += delta * w;
     counterW += w;
     matchupGames += wl.games;
-    if (delta >= 0.02) reasons.push(`Dobrze przeciw ${e.name} (${pp(delta)})`);
-    if (delta <= -0.02) reasons.push(`Trudny matchup z ${e.name} (${pp(delta)})`);
+    if (delta >= 0.02) reasons.push(`Dobra przeciw ${e.name} – wygrywa o ${pct(delta)} częściej niż zwykle`);
+    if (delta <= -0.02) reasons.push(`Trudny przeciwnik: ${e.name} – wygrywa o ${pct(delta)} rzadziej niż zwykle`);
   }
   const counter = counterW ? clamp(counterSum / counterW / 0.04) : 0;
 
@@ -125,7 +151,7 @@ export function scoreChampion(c: ChampionProfile, ctx: PickContext, stats: Stats
     const delta = smoothedWinrate(wl, 40) - baseWr;
     synSum += delta;
     synN++;
-    if (delta >= 0.02) reasons.push(`Synergia z ${a.name} (${pp(delta)})`);
+    if (delta >= 0.02) reasons.push(`Dobrze współgra z ${a.name} – wygrywa o ${pct(delta)} częściej`);
   }
   const synergy = synN ? clamp(synSum / synN / 0.04) : 0;
 
@@ -135,11 +161,27 @@ export function scoreChampion(c: ChampionProfile, ctx: PickContext, stats: Stats
 
   const weighted = W.meta * meta + W.counter * counter + W.synergy * synergy + W.composition * comp.value;
   const total = Math.round(50 + 50 * clamp(weighted));
-  const confidence = stats.hasData
-    ? clamp(0.5 * Math.min(1, (base?.games ?? 0) / 500) + 0.5 * Math.min(1, matchupGames / 300), 0, 1)
-    : 0.25;
+  // Pewność: ile meczów stoi za oceną (gry postaci na pozycji, a gdy są wrogowie – także matchupy).
+  const confidence = !stats.hasData
+    ? 0.15
+    : ctx.enemies.length
+      ? clamp(0.6 * Math.min(1, games / 150) + 0.4 * Math.min(1, matchupGames / 100), 0, 1)
+      : clamp(Math.min(1, games / 150), 0, 1);
 
-  return { score: { meta, counter, synergy, composition: comp.value, total, confidence }, reasons };
+  return {
+    score: {
+      meta,
+      counter,
+      synergy,
+      composition: comp.value,
+      total,
+      confidence,
+      games,
+      winrate: games ? base!.wins / games : null,
+      pickRate: stats.hasData ? pickRate : null,
+    },
+    reasons,
+  };
 }
 
 /** Ustala pozycję gracza: z klienta, a w blind picku – pierwszą niezajętą przez sojuszników. */
@@ -153,13 +195,17 @@ export function buildPickContext(draft: DraftState, data: GameData, stats: Stats
   const profile = (id: number | null) => (id ? data.champions.get(id) : undefined);
   const allies = draft.myTeam.filter((s) => !s.isLocalPlayer).map((s) => profile(s.championId)).filter((c): c is ChampionProfile => !!c);
   const enemies = draft.enemyTeam.map((s) => profile(s.championId)).filter((c): c is ChampionProfile => !!c);
+  const position = resolveMyPosition(draft, allies, stats);
+  const positionGames = stats.totalGamesOnPosition(position);
   return {
-    position: resolveMyPosition(draft, allies, stats),
+    position,
     allies,
     enemies,
     enemyPositions: inferPositions(enemies, stats),
     allyAnalysis: analyzeTeam(allies),
     enemyAnalysis: analyzeTeam(enemies),
+    positionGames,
+    avgPickRate: 1 / Math.max(1, stats.championsOnPosition(position)),
   };
 }
 
@@ -175,7 +221,7 @@ export function recommendPicks(draft: DraftState, data: GameData, stats: StatsSt
     ...draft.myTeam.filter((s) => !s.isLocalPlayer).map((s) => s.championId ?? 0),
   ]);
   const pickable = new Set(draft.pickableChampionIds);
-  const minGames = Math.max(10, stats.totalGamesOnPosition(ctx.position) * 0.004);
+  const minGames = Math.max(10, ctx.positionGames * MIN_PICK_RATE);
 
   const available = [...data.champions.values()].filter((c) => !unavailable.has(c.id) && (!pickable.size || pickable.has(c.id)));
   const byStats = available.filter((c) => stats.positionGames(c.id, ctx.position) >= minGames);

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import type { ChampionProfile } from "../src/shared/types";
 import { parseItemStats, type CatalogItem } from "../src/server/data/itemCatalog";
 import { smoothedWinrate } from "../src/server/data/statsStore";
-import { situationalItems } from "../src/server/engine/buildEngine";
+import { situationalItems, skillLevels } from "../src/server/engine/buildEngine";
 import { compositionScore } from "../src/server/engine/pickEngine";
 import { analyzeTeam } from "../src/server/engine/teamAnalysis";
 import { parseSession } from "../src/server/lcu/champSelect";
@@ -92,4 +92,11 @@ test("parseSession rozpoznaje gracza, pozycje i zablokowane picki", () => {
   assert.equal(draft.myChampionId, 22);
   assert.equal(draft.myTeam[0].locked, true);
   assert.deepEqual(draft.bans, [7]);
+});
+
+test("kolejność umiejętności rozpisana na poziomy 1–18 według zasad gry", () => {
+  assert.equal(skillLevels(["Q", "W", "E"]).join(""), "QWEQQRQWQWRWWEEREE");
+  const levels = skillLevels(["E", "Q", "W"]);
+  assert.equal(levels.filter((s) => s === "R").length, 3);
+  for (const s of ["Q", "W", "E"]) assert.equal(levels.filter((x) => x === s).length, 5);
 });

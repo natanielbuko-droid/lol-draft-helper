@@ -19,6 +19,8 @@ const ALLIES: [string, string][] = [
 const ENEMIES = ["Darius", "Warwick", "Vladimir", "Samira", "Soraka"];
 const BANS = ["Yasuo", "Zed", "Kaisa", "Morgana"];
 const MY_PICK = "Jinx";
+/** Ile kroków symulacji trwa "gra" po champ selekcie, zanim zacznie się kolejny draft. */
+const IN_GAME_TICKS = 4;
 const LOCAL_CELL = 3;
 
 // Kolejność zdarzeń: [ile sojuszników zablokowało, ilu wrogów, czy hoveruję, czy zablokowałem]
@@ -71,9 +73,16 @@ export class MockLcu extends EventEmitter implements DraftSource {
   }
 
   private tick(): void {
-    const [alliesLocked, enemiesLocked, hover, lockedMe] = TIMELINE[this.step];
-    this.emit("session", this.buildSession(alliesLocked, enemiesLocked, hover, lockedMe));
-    this.step = (this.step + 1) % TIMELINE.length;
+    if (this.step < TIMELINE.length) {
+      if (this.step === 0) this.emit("phase", "ChampSelect");
+      const [alliesLocked, enemiesLocked, hover, lockedMe] = TIMELINE[this.step];
+      this.emit("session", this.buildSession(alliesLocked, enemiesLocked, hover, lockedMe));
+    } else if (this.step === TIMELINE.length) {
+      // Po champ selekcie symulujemy grę – aplikacja powinna dalej pokazywać build.
+      this.emit("session", null);
+      this.emit("phase", "InProgress");
+    }
+    this.step = (this.step + 1) % (TIMELINE.length + IN_GAME_TICKS);
   }
 
   private buildSession(alliesLocked: number, enemiesLocked: number, hover: boolean, lockedMe: boolean): LcuSession {

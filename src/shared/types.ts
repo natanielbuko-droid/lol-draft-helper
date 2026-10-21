@@ -64,6 +64,12 @@ export interface ScoreBreakdown {
   composition: number; // -1..1
   total: number; // 0..100
   confidence: number; // 0..1 – ile danych stoi za oceną
+  /** Ile meczów tej postaci na tej pozycji jest w statystykach (0 = brak danych). */
+  games: number;
+  /** Winrate na tej pozycji (0..1), gdy są statystyki. */
+  winrate: number | null;
+  /** Jak często postać jest wybierana na tę pozycję (0..1). */
+  pickRate: number | null;
 }
 
 export interface PickRecommendation {
@@ -93,29 +99,51 @@ export interface SpellRef {
   image: string;
 }
 
+export interface RuneRef {
+  id: number;
+  name: string;
+  image: string;
+}
+
 export interface RuneRecommendation {
-  primaryTree: string;
-  keystone: string;
-  keystoneImage: string;
-  secondaryTree: string;
-  /** Pełna strona run (9 ID) – tylko gdy pochodzi ze statystyk; wtedy można ją zaimportować do klienta. */
+  primaryTree: RuneRef;
+  secondaryTree: RuneRef;
+  /** Kamień węgielny + 3 runy z drzewa głównego. */
+  primary: RuneRef[];
+  /** 2 runy z drzewa pomocniczego. */
+  secondary: RuneRef[];
+  /** 3 odłamki statystyk (atak / elastyczne / obrona). */
+  shards: RuneRef[];
+  /** Pełna strona run (9 ID) w kolejności oczekiwanej przez klienta – pozwala ją zaimportować. */
   perkIds: number[];
   primaryStyleId: number;
   subStyleId: number;
   source: "stats" | "heuristic";
 }
 
+export type Skill = "Q" | "W" | "E" | "R";
+
 export interface BuildRecommendation {
   championId: number;
   championName: string;
   position: Position;
+  /** Przedmioty startowe (ze statystyk, gdy crawler zbierał osie czasu meczów). */
+  starters: ItemRef[];
   core: ItemRef[];
   boots: ItemRef | null;
+  /** Kolejne przedmioty po core – razem z core i butami dają pełny build na 6 slotów. */
+  late: ItemRef[];
   situational: SituationalItem[];
   summonerSpells: SpellRef[];
   summonerReason: string;
   runes: RuneRecommendation | null;
-  skillOrder: { order: string; source: "stats" | "heuristic" };
+  skillOrder: {
+    /** Kolejność maksowania, np. ["Q", "W", "E"]. */
+    max: Skill[];
+    /** Umiejętność do rozwinięcia na każdym poziomie 1–18. */
+    levels: Skill[];
+    source: "stats" | "heuristic";
+  };
   source: "stats" | "heuristic";
   notes: string[];
 }

@@ -5,6 +5,16 @@ import { PickSuggestions } from "./components/PickSuggestions";
 import { TeamPanel } from "./components/TeamPanel";
 import { useAppState } from "./useAppState";
 
+/** Fazy klienta LoL po champ selekcie -> komunikat dla gracza. */
+const PHASE_BANNER: Record<string, string> = {
+  GameStart: "Gra się ładuje",
+  InProgress: "Trwa gra",
+  Reconnect: "Trwa gra",
+  WaitingForStats: "Koniec gry",
+  PreEndOfGame: "Koniec gry",
+  EndOfGame: "Koniec gry",
+};
+
 /**
  * Struktura UI:
  *   Header          – status połączenia z klientem LoL, patch, źródło statystyk
@@ -36,6 +46,22 @@ export function App() {
             Faza klienta: <b>{state.gameflowPhase}</b>. Rekomendacje pojawią się automatycznie, gdy wejdziesz do wyboru postaci.
           </p>
         </div>
+      ) : state.gameflowPhase !== "ChampSelect" ? (
+        // Po champ selekcie (gra, ekran końcowy, lobby) – na pierwszym planie build z ostatniego draftu.
+        <>
+          <div className="banner">
+            {PHASE_BANNER[state.gameflowPhase] ?? "Champ select zakończony"} – poniżej Twój build z ostatniego wyboru postaci.
+          </div>
+          <main className="grid in-game">
+            <section className="col">
+              {state.build ? <BuildPanel build={state.build} /> : <div className="card muted">Nie wybrano postaci w ostatnim champ selekcie.</div>}
+            </section>
+            <section className="col">
+              <TeamPanel ally={state.allyAnalysis} enemy={state.enemyAnalysis} />
+              <DraftBoard draft={draft} champions={state.champions} />
+            </section>
+          </main>
+        </>
       ) : (
         <main className="grid">
           <section className="col">

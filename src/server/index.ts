@@ -80,14 +80,11 @@ async function main() {
   }
 
   source.on("status", (connection) => update({ connection }));
-  source.on("phase", (gameflowPhase: string) => {
-    update({ gameflowPhase });
-    if (gameflowPhase !== "ChampSelect") {
-      lastSession = null;
-      void recompute();
-    }
-  });
+  // Po champ selekcie (ładowanie, gra, ekran końcowy) zostawiamy ostatni draft i build na ekranie –
+  // gracz zagląda do buildu właśnie w trakcie gry. Zastąpi je dopiero następny champ select.
+  source.on("phase", (gameflowPhase: string) => update({ gameflowPhase }));
   source.on("session", (session: LcuSession | null) => {
+    if (!session) return; // koniec champ selectu – zachowujemy ostatnie rekomendacje
     lastSession = session;
     void recompute();
   });

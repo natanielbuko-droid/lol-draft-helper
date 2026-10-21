@@ -37,6 +37,7 @@ export interface BuildStats {
   summoners: Record<string, WL>; // "4+14"
   runes: Record<string, WL>; // "primaryStyle|subStyle|perk,perk,..."
   skillOrders: Record<string, WL>; // "QWE" – kolejność maksowania
+  starters?: Record<string, WL>; // "1055+2003" – przedmioty kupione na starcie (z osi czasu meczu)
 }
 
 export function emptyStats(patch = "unknown"): StatsFile {
@@ -111,6 +112,13 @@ export class StatsStore {
     let sum = 0;
     for (const byPos of Object.values(this.stats.champions)) sum += byPos[position]?.games ?? 0;
     return sum;
+  }
+
+  /** Ile różnych postaci zagrało na tej pozycji (do wyliczenia średniej popularności). */
+  championsOnPosition(position: Position): number {
+    let n = 0;
+    for (const byPos of Object.values(this.stats.champions)) if ((byPos[position]?.games ?? 0) > 0) n++;
+    return n;
   }
 
   /** Prawdopodobieństwo, że postać gra na danej pozycji (do zgadywania ról przeciwników). */

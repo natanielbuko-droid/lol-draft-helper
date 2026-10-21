@@ -91,3 +91,41 @@ dt { color: var(--muted); }
 dd { margin: 0; }
 
 .legal { margin-top: 24px; font-size: 11px; text-align: center; }
+
+/* Tryb "w grze" */
+.banner { background: rgba(200, 170, 110, .15); border: 1px solid var(--gold); border-radius: 8px; padding: 8px 12px; margin-bottom: 16px; }
+.grid.in-game { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
+@media (max-width: 900px) { .grid.in-game { grid-template-columns: minmax(0, 1fr); } }
+
+/* Czytelniejsze picki */
+.howto { margin-bottom: 10px; font-size: 12px; color: var(--muted); }
+.howto summary { cursor: pointer; color: var(--gold); }
+.howto ul { margin: 6px 0 0; padding-left: 18px; }
+.score.great, .verdict.great { color: var(--pos); }
+.score.good, .verdict.good { color: #84cc16; }
+.score.ok, .verdict.ok { color: var(--gold); }
+.score.bad, .verdict.bad { color: var(--neg); }
+.verdict { font-size: 12px; font-weight: 600; }
+.pick-stats { font-size: 12px; margin: 2px 0 4px; }
+
+/* Pełny build */
+.item { position: relative; }
+.step { position: absolute; top: -6px; left: 6px; background: var(--gold); color: #111; border-radius: 999px; font-size: 10px; font-weight: 700; width: 16px; height: 16px; line-height: 16px; }
+
+/* Pełna strona run */
+.runes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.rune-tree { display: flex; flex-direction: column; gap: 4px; }
+.tree-name { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; color: var(--gold); }
+.tree-name img { width: 20px; height: 20px; }
+.shards-title { margin-top: 6px; }
+.rune-slot { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.rune-slot img { width: 24px; height: 24px; border-radius: 50%; background: #0e151d; }
+.rune-slot.big img { width: 36px; height: 36px; }
+.rune-slot.big span { font-weight: 600; }
+
+/* Kolejność umiejętności – siatka poziomów 1–18 */
+.skills { display: flex; flex-direction: column; gap: 2px; overflow-x: auto; }
+.skill-row { display: grid; grid-template-columns: 20px repeat(18, minmax(16px, 1fr)); gap: 2px; align-items: center; }
+.skill-row span { height: 18px; border-radius: 3px; background: #0e151d; font-size: 10px; text-align: center; line-height: 18px; }
+.skill-row span.on { background: var(--ally); color: #fff; font-weight: 700; }
+.skill-row span.on.R { background: var(--gold); color: #111; }

@@ -41,7 +41,7 @@ export interface MatchDto {
 }
 
 export interface TimelineDto {
-  info: { frames: { events: { type: string; participantId?: number; skillSlot?: number; itemId?: number }[] }[] };
+  info: { frames: { events: { type: string; timestamp: number; participantId?: number; skillSlot?: number; itemId?: number }[] }[] };
 }
 
 export class RiotApi {
