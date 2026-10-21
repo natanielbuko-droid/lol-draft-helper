@@ -14,8 +14,8 @@ Samowystarczalny asystent do League of Legends (w stylu Blitz / Mobalytics / Por
 ## 1. Jak przetestować (Windows)
 
 1. Zainstaluj **[Node.js](https://nodejs.org) w wersji LTS** (20.12 lub nowszej) – zwykły instalator, wszystko „Dalej”.
-2. Pobierz aplikację: zielony przycisk **Code → Download ZIP** na tej stronie i rozpakuj archiwum
-   (albo `git clone`).
+2. Pobierz aplikację: zielony przycisk **Code → Download ZIP** na tej stronie, a potem **rozpakuj archiwum**
+   (prawy przycisk na pliku ZIP → „Wyodrębnij wszystkie…”). Uruchamianie plików bezpośrednio z ZIP-a nie zadziała.
 3. Kliknij dwukrotnie:
    - **`demo.bat`** – tryb demo z symulowanym champ selectem. Nie potrzebujesz włączonej gry. Zacznij od tego.
    - **`start.bat`** – wersja dla prawdziwej gry. Włącz klienta League of Legends i wejdź do wyboru postaci;
@@ -34,6 +34,8 @@ z wysokich lig, więc traktuj je jako wskazówkę, a nie wyrocznię (aplikacja p
 
 | Problem | Rozwiązanie |
 |---|---|
+| `start.bat` „nie chce się włączyć”, okno mignie i znika albo pisze „Brakuje plików aplikacji” | plik został uruchomiony prosto z ZIP-a. Kliknij prawym na pobrany ZIP → **Wyodrębnij wszystkie…**, otwórz rozpakowany folder `lol-draft-helper-main` i uruchom `start.bat` stamtąd |
+| Niebieskie okno „System Windows ochronił ten komputer” | to standardowe ostrzeżenie dla plików z internetu: kliknij **Więcej informacji → Uruchom mimo to** |
 | „Nie znaleziono Node.js” | zainstaluj Node.js LTS i uruchom plik ponownie |
 | „Port 4777 jest zajęty” | aplikacja działa już w innym oknie – zamknij je |
 | `npm : File ... npm.ps1 cannot be loaded` w PowerShellu | używaj plików `.bat` albo wpisuj `npm.cmd` zamiast `npm` |
