@@ -147,7 +147,33 @@ export interface BuildRecommendation {
     source: "stats" | "heuristic";
   };
   source: "stats" | "heuristic";
+  /** Wyniki wybranego wariantu w statystykach (null = dobrany heurystycznie, bez danych). */
+  mainStats: { core: WinStat | null; runes: WinStat | null; summoners: WinStat | null };
+  /** Inne warianty grane przez graczy – żeby nie ograniczać się do jednego buildu. */
+  alternatives: BuildAlternatives;
   notes: string[];
+}
+
+/** Liczba gier i winrate wariantu w statystykach. */
+export interface WinStat {
+  games: number;
+  winrate: number;
+}
+
+export interface BuildAlternatives {
+  /** Inne ścieżki 3 pierwszych przedmiotów (kolejność zakupu). */
+  cores: (WinStat & { items: ItemRef[] })[];
+  /** Inne strony run. */
+  runes: (WinStat & { page: RuneRecommendation })[];
+  /** Inne pary czarów przywoływacza. */
+  summoners: (WinStat & { spells: SpellRef[] })[];
+}
+
+/** Trzy scenariusze wyboru: postać pasująca idealnie, neutralnie i koszmarnie do tego draftu. */
+export interface PickScenario {
+  kind: "ideal" | "neutral" | "nightmare";
+  pick: PickRecommendation;
+  summary: string[];
 }
 
 export interface TeamAnalysis {
@@ -180,6 +206,8 @@ export interface AppState {
   draft: DraftState | null;
   picks: PickRecommendation[];
   build: BuildRecommendation | null;
+  /** Idealny / neutralny / koszmarny wybór (pusta lista, gdy za mało kandydatów). */
+  scenarios: PickScenario[];
   allyAnalysis: TeamAnalysis | null;
   enemyAnalysis: TeamAnalysis | null;
   champions: Record<number, { name: string; image: string }>;

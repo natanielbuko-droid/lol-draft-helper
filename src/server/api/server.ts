@@ -7,9 +7,16 @@ import path from "node:path";
 import { WebSocketServer, WebSocket } from "ws";
 import type { AppState } from "../../shared/types";
 
+export interface RunePageRequest {
+  primaryStyleId: number;
+  subStyleId: number;
+  perkIds: number[];
+}
+
 export interface ApiHandlers {
   getState(): AppState;
-  applyRunes(): Promise<string>;
+  /** Zapisuje w kliencie podaną stronę run (albo główną stronę z buildu, gdy brak). */
+  applyRunes(page?: RunePageRequest): Promise<string>;
   refreshStats(): Promise<void>;
 }
 
@@ -68,9 +75,14 @@ export function startApiServer(port: number, handlers: ApiHandlers, openBrowser 
 
   app.get("/api/state", (_req, res) => res.json(handlers.getState()));
 
-  app.post("/api/runes/apply", async (_req, res) => {
+  app.post("/api/runes/apply", async (req, res) => {
     try {
-      res.json({ ok: true, message: await handlers.applyRunes() });
+      const body = req.body as Partial<RunePageRequest> | undefined;
+      const page =
+        body && Array.isArray(body.perkIds)
+          ? { primaryStyleId: Number(body.primaryStyleId), subStyleId: Number(body.subStyleId), perkIds: body.perkIds.map(Number) }
+          : undefined;
+      res.json({ ok: true, message: await handlers.applyRunes(page) });
     } catch (err) {
       res.status(400).json({ ok: false, message: (err as Error).message });
     }

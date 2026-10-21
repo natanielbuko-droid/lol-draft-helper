@@ -1,5 +1,18 @@
 import { useState } from "react";
-import { POSITION_LABEL, type BuildRecommendation, type ItemRef, type RuneRef } from "../../shared/types";
+import { POSITION_LABEL, type BuildRecommendation, type ItemRef, type RuneRecommendation, type RuneRef, type WinStat } from "../../shared/types";
+
+/** Polska odmiana: 1 gra, 2–4 gry, 5+ gier (ale 12–14 gier). */
+const gamesLabel = (n: number) => `${n} ${n === 1 ? "gra" : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? "gry" : "gier"}`;
+
+/** "winrate 54,2% · 37 gier" – wyniki wariantu w statystykach. */
+function Stat({ s }: { s: WinStat | null }) {
+  if (!s) return null;
+  return (
+    <span className="winstat" title="Winrate i liczba gier tego wariantu w statystykach">
+      winrate <b>{(s.winrate * 100).toFixed(1).replace(".", ",")}%</b> · {gamesLabel(s.games)}
+    </span>
+  );
+}
 
 function Item({ item, step }: { item: ItemRef; step?: number }) {
   return (
@@ -26,8 +39,15 @@ export function BuildPanel({ build }: { build: BuildRecommendation }) {
   const [msg, setMsg] = useState<string | null>(null);
   const { runes, skillOrder } = build;
 
-  const applyRunes = async () => {
-    const res = await fetch("/api/runes/apply", { method: "POST" });
+  const { alternatives: alt, mainStats } = build;
+
+  /** Zapisuje w kliencie główną stronę run albo wybraną alternatywną. */
+  const applyRunes = async (page?: RuneRecommendation) => {
+    const res = await fetch("/api/runes/apply", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(page ? { primaryStyleId: page.primaryStyleId, subStyleId: page.subStyleId, perkIds: page.perkIds } : {}),
+    });
     setMsg(((await res.json()) as { message: string }).message);
   };
 
@@ -54,12 +74,34 @@ export function BuildPanel({ build }: { build: BuildRecommendation }) {
         </>
       )}
 
-      <h4>Pełny build (kupuj w tej kolejności)</h4>
+      <h4>
+        Pełny build (kupuj w tej kolejności) <Stat s={mainStats.core} />
+      </h4>
       <div className="items">
         {fullBuild.map((i, n) => (
           <Item key={i.id} item={i} step={n + 1} />
         ))}
       </div>
+
+      {alt.cores.length > 0 && (
+        <>
+          <h4>
+            Inne buildy grane przez graczy <small className="muted">(3 pierwsze przedmioty)</small>
+          </h4>
+          <ul className="alts">
+            {alt.cores.map((c) => (
+              <li key={c.items.map((i) => i.id).join(">")}>
+                <div className="items small">
+                  {c.items.map((i, n) => (
+                    <Item key={i.id} item={i} step={n + 1} />
+                  ))}
+                </div>
+                <Stat s={c} />
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
 
       <h4>Sytuacyjne – zamień, gdy pasuje do wroga</h4>
       {build.situational.length === 0 ? (
@@ -79,7 +121,8 @@ export function BuildPanel({ build }: { build: BuildRecommendation }) {
         <>
           <h4>
             Runy{" "}
-            <small className="muted">({runes.source === "stats" ? "najczęściej wygrywająca strona" : "dobrane automatycznie"})</small>
+            <small className="muted">({runes.source === "stats" ? "najczęściej wygrywająca strona" : "dobrane automatycznie"})</small>{" "}
+            <Stat s={mainStats.runes} />
           </h4>
           <div className="runes">
             <div className="rune-tree">
@@ -103,14 +146,43 @@ export function BuildPanel({ build }: { build: BuildRecommendation }) {
               ))}
             </div>
           </div>
-          <button onClick={applyRunes}>Zapisz runy w kliencie LoL</button>
+          <button onClick={() => applyRunes()}>Zapisz runy w kliencie LoL</button>
           {msg && <small className="muted"> {msg}</small>}
+        </>
+      )}
+
+      {alt.runes.length > 0 && (
+        <>
+          <h4>Inne strony run</h4>
+          <ul className="alts">
+            {alt.runes.map((r) => (
+              <li key={r.page.perkIds.join(",")}>
+                <div className="alt-runes">
+                  <Rune rune={r.page.primary[0]} big />
+                  <div className="alt-runes-rest">
+                    {[...r.page.primary.slice(1), ...r.page.secondary].map((x) => (
+                      <img key={x.id} src={x.image} alt="" title={x.name} />
+                    ))}
+                    <small className="muted">
+                      {r.page.primaryTree.name} + {r.page.secondaryTree.name}
+                    </small>
+                  </div>
+                </div>
+                <Stat s={r} />
+                <button className="secondary" onClick={() => applyRunes(r.page)}>
+                  Zapisz
+                </button>
+              </li>
+            ))}
+          </ul>
         </>
       )}
 
       <div className="row">
         <div>
-          <h4>Czary przywoływacza</h4>
+          <h4>
+            Czary przywoływacza <Stat s={mainStats.summoners} />
+          </h4>
           <div className="items">
             {build.summonerSpells.map((s) => (
               <figure className="item" key={s.id} title={s.name}>
@@ -120,6 +192,21 @@ export function BuildPanel({ build }: { build: BuildRecommendation }) {
             ))}
           </div>
           <small className="muted">{build.summonerReason}</small>
+          {alt.summoners.length > 0 && (
+            <ul className="alts">
+              {alt.summoners.map((a) => (
+                <li key={a.spells.map((x) => x.id).join("+")}>
+                  <span className="alt-spells">
+                    {a.spells.map((x) => (
+                      <img key={x.id} src={x.image} alt="" title={x.name} />
+                    ))}
+                    {a.spells.map((x) => x.name).join(" + ")}
+                  </span>
+                  <Stat s={a} />
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
 

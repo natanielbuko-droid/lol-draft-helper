@@ -2,6 +2,7 @@ import { BuildPanel } from "./components/BuildPanel";
 import { DraftBoard } from "./components/DraftBoard";
 import { Header } from "./components/Header";
 import { PickSuggestions } from "./components/PickSuggestions";
+import { ScenarioCards } from "./components/ScenarioCards";
 import { TeamPanel } from "./components/TeamPanel";
 import { useAppState } from "./useAppState";
 
@@ -69,6 +70,7 @@ export function App() {
             <TeamPanel ally={state.allyAnalysis} enemy={state.enemyAnalysis} />
           </section>
           <section className="col">
+            <ScenarioCards scenarios={state.scenarios} />
             {state.picks.length > 0 && <PickSuggestions picks={state.picks} />}
             {state.build ? <BuildPanel build={state.build} /> : <div className="card muted">Najedź na postać (hover), aby zobaczyć build.</div>}
           </section>

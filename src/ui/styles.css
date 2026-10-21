@@ -134,3 +134,39 @@ dd { margin: 0; }
 .comparison { background: rgba(59, 130, 246, .08); border-left: 3px solid var(--ally); border-radius: 4px; padding: 4px 8px; margin: 4px 0; font-size: 12px; }
 .comparison span { color: var(--gold); font-weight: 600; }
 .comparison ul { margin: 2px 0 0; padding-left: 16px; }
+
+/* Pełna lista picków */
+.rank { color: var(--muted); font-size: 12px; font-weight: 600; min-width: 26px; }
+button.secondary { background: transparent; color: var(--gold); border: 1px solid var(--gold); }
+
+/* 3 scenariusze */
+.scenarios { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 700px) { .scenarios { grid-template-columns: minmax(0, 1fr); } }
+.scenario { border: 1px solid var(--border); border-top: 3px solid; border-radius: 8px; padding: 8px; font-size: 12px; }
+.scenario.ideal { border-top-color: var(--pos); }
+.scenario.neutral { border-top-color: var(--muted); }
+.scenario.nightmare { border-top-color: var(--neg); }
+.scenario-head { display: flex; justify-content: space-between; align-items: baseline; }
+.scenario-kind { font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.scenario.ideal .scenario-kind { color: var(--pos); }
+.scenario.nightmare .scenario-kind { color: var(--neg); }
+.scenario-score { color: var(--muted); }
+.scenario-champ { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 14px; }
+.scenario-champ img { width: 40px; height: 40px; border-radius: 8px; }
+.scenario ul { margin: 0; padding-left: 16px; color: var(--muted); }
+
+/* Alternatywne buildy, runy, czary */
+.winstat { font-size: 11px; font-weight: 400; color: var(--muted); text-transform: none; letter-spacing: 0; }
+.winstat b { color: var(--text); }
+.alts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.alts li { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 4px 0; border-bottom: 1px dashed var(--border); }
+.alts li:last-child { border-bottom: 0; }
+.items.small .item { width: 48px; }
+.items.small .item img { width: 32px; height: 32px; }
+.items.small figcaption { display: none; }
+.alt-runes { display: flex; align-items: center; gap: 8px; }
+.alt-runes-rest { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.alt-runes-rest img { width: 22px; height: 22px; border-radius: 50%; background: #0e151d; }
+.alt-spells { display: flex; align-items: center; gap: 4px; font-size: 12px; }
+.alt-spells img { width: 22px; height: 22px; border-radius: 4px; }
+.alts button { margin-top: 0; padding: 3px 8px; font-size: 12px; }

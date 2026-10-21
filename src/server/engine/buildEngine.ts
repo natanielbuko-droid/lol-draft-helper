@@ -1,4 +1,5 @@
 import type {
+  BuildAlternatives,
   BuildRecommendation,
   ChampionProfile,
   ItemRef,
@@ -9,6 +10,7 @@ import type {
   Skill,
   SpellRef,
   TeamAnalysis,
+  WinStat,
 } from "../../shared/types";
 import { cdragonAsset } from "../data/cdragon";
 import type { GameData } from "../data/gameData";
@@ -300,6 +302,60 @@ function starterItems(data: GameData, bs: BuildStats | undefined): ItemRef[] {
   return refs.every((r) => !!r) ? (refs as ItemRef[]) : [];
 }
 
+// --------------------------------------------------------- ALTERNATIVES ---
+
+const winStat = (wl: WL | undefined): WinStat | null => (wl && wl.games ? { games: wl.games, winrate: wl.wins / wl.games } : null);
+
+/** Najczęściej grane warianty z co najmniej `minGames` gier – od najpopularniejszego. */
+function topEntries(entries: Record<string, WL> | undefined, minGames = 3): [string, WL][] {
+  return Object.entries(entries ?? {})
+    .filter(([, wl]) => wl.games >= minGames)
+    .sort((a, b) => b[1].games - a[1].games);
+}
+
+const runeKey = (r: RuneRecommendation) => `${r.primaryStyleId}|${r.subStyleId}|${r.perkIds.join(",")}`;
+const spellKey = (spells: { key: number }[]) => spells.map((s) => s.key).sort((a, b) => a - b).join("+");
+
+/**
+ * Inne warianty buildu grane przez graczy (ze statystyk): ścieżki przedmiotów, strony run i pary czarów.
+ * Pomijamy wariant, który już polecamy jako główny.
+ */
+function buildAlternatives(
+  data: GameData,
+  bs: BuildStats | undefined,
+  chosen: { coreKey: string; runes: RuneRecommendation | null; spellKey: string },
+): BuildAlternatives {
+  const usable = (id: string) => {
+    const it = data.items.get(id);
+    return it && it.isCompleted && !it.isBoots ? toRef(it) : undefined;
+  };
+  const byKey = new Map([...data.summoners.values()].map((s) => [s.key, s]));
+
+  const cores = topEntries(bs?.coreOrders)
+    .filter(([key]) => key !== chosen.coreKey)
+    .map(([key, wl]) => ({ items: key.split(">").map(usable), ...winStat(wl)! }))
+    .filter((c): c is WinStat & { items: ItemRef[] } => c.items.length === 3 && c.items.every((i) => !!i))
+    .slice(0, 4);
+
+  const runes = topEntries(bs?.runes)
+    .filter(([key]) => !chosen.runes || key !== runeKey(chosen.runes))
+    .map(([key, wl]) => {
+      const [primary, sub, perks] = key.split("|");
+      return { page: runePage(perks.split(",").map(Number), Number(primary), Number(sub), data, "stats"), ...winStat(wl)! };
+    })
+    .filter((r): r is WinStat & { page: RuneRecommendation } => !!r.page)
+    .slice(0, 3);
+
+  const summoners = topEntries(bs?.summoners)
+    .filter(([key]) => key !== chosen.spellKey)
+    .map(([key, wl]) => ({ spells: key.split("+").map((k) => byKey.get(Number(k))), ...winStat(wl)! }))
+    .filter((s) => s.spells.length === 2 && s.spells.every((x) => !!x))
+    .map((s) => ({ ...s, spells: s.spells.map((x): SpellRef => ({ id: x!.id, name: x!.name, image: x!.image })) }))
+    .slice(0, 3);
+
+  return { cores, runes, summoners };
+}
+
 // ------------------------------------------------------------ PUBLIC API ---
 
 export function recommendBuild(
@@ -325,6 +381,13 @@ export function recommendBuild(
   const max = (skill ? skill.split("") : ["Q", "W", "E"]) as Skill[];
   const skillOrder = { max, levels: skillLevels(max), source: skill ? ("stats" as const) : ("heuristic" as const) };
 
+  const chosen = { coreKey: core.map((i) => i.id).join(">"), runes, spellKey: spellKey(spells) };
+  const mainStats = {
+    core: winStat(bs?.coreOrders[chosen.coreKey]),
+    runes: runes?.source === "stats" ? winStat(bs?.runes[runeKey(runes)]) : null,
+    summoners: winStat(bs?.summoners[chosen.spellKey]),
+  };
+
   if (!fromStats) notes.push("Brak statystyk dla tej postaci na tej pozycji – build dobrany na podstawie statystyk przedmiotów.");
   if (bootsReason) notes.push(bootsReason);
   if (!enemies.length) notes.push("Przeciwnicy jeszcze nie wybrali postaci – przedmioty sytuacyjne pojawią się po ich pickach.");
@@ -344,6 +407,8 @@ export function recommendBuild(
     runes,
     skillOrder,
     source: fromStats ? "stats" : "heuristic",
+    mainStats,
+    alternatives: buildAlternatives(data, bs, chosen),
     notes,
   };
 }

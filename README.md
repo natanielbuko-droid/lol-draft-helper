@@ -2,8 +2,10 @@
 
 Samowystarczalny asystent do League of Legends (w stylu Blitz / Mobalytics / Porofessor):
 
-- **Draft Helper** – ranking picków w champ selekcie na żywo (meta + kontry + synergia + analiza składu),
+- **Draft Helper** – pełny ranking picków w champ selekcie na żywo (meta + kontry + synergia + analiza składu)
+  z porównaniem każdej postaci do pozostałych oraz **3 scenariuszami**: postać pasująca idealnie, neutralnie i koszmarnie,
 - **Dynamiczne buildy** – core + przedmioty sytuacyjne dopasowane do wrogiego składu, runy, czary, kolejność umiejętności,
+  a obok **inne warianty grane przez graczy** (ścieżki przedmiotów, strony run, czary) z winrate i liczbą gier,
 - **Autonomia** – dane o grze pobierane automatycznie przy każdym nowym patchu; statystyki zbierane własnym crawlerem.
 
 > 🧪 **Wersja testowa.** Aplikacja jest we wczesnej fazie – chętnie przyjmę uwagi i zgłoszenia błędów w zakładce
@@ -200,9 +202,13 @@ funkcja RECOMMEND_PICKS(draft):
         WYNIK ← 50 + 50 × suma_ważona
         PEWNOŚĆ ← ile gier stoi za oceną (base + matchupy)
 
-    ranking ← 8 najlepszych, każda z listą powodów („Dobra przeciw Darius – wygrywa o 2,3% częściej niż zwykle”)
+    ranking ← WSZYSTKIE postacie z puli, od najlepszej, każda z listą powodów
+              („Dobra przeciw Darius – wygrywa o 2,3% częściej niż zwykle”)
 
-    dla każdej propozycji P z rankingu:             # porównanie NA TLE pozostałych
+    scenariusze ← idealnie = #1, koszmarnie = ostatnia z puli, neutralnie = ocena najbliższa 50
+                  (każdy z podsumowaniem mocnych / słabych stron)
+
+    dla każdej propozycji P z rankingu:             # porównanie NA TLE czołówki (10 najlepszych)
         #1: dlaczego jest wyżej niż #2 (składowe z największą przewagą)
         pozostałe: w czym są lepsze od #1
         winrate P vs średnia pozostałych, w czym P jest najlepsza z listy, czy jest najpopularniejsza

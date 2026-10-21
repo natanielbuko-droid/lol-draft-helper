@@ -1,4 +1,8 @@
+import { useState } from "react";
 import type { PickRecommendation, ScoreBreakdown } from "../../shared/types";
+
+/** Ile propozycji pokazujemy od razu – resztę po kliknięciu "Pokaż wszystkie". */
+const INITIAL_VISIBLE = 10;
 
 const pct = (x: number) => `${(x * 100).toFixed(1).replace(".", ",")}%`;
 /** Polska odmiana: 1 mecz, 2–4 mecze, 5+ meczów (ale 12–14 meczów). */
@@ -53,9 +57,13 @@ function Stats({ s }: { s: ScoreBreakdown }) {
 }
 
 export function PickSuggestions({ picks }: { picks: PickRecommendation[] }) {
+  const [showAll, setShowAll] = useState(false);
+  const visible = showAll ? picks : picks.slice(0, INITIAL_VISIBLE);
   return (
     <div className="card">
-      <h3>Rekomendowane picki</h3>
+      <h3>
+        Rekomendowane picki <small className="muted">({picks.length} postaci grywalnych na tej pozycji, od najlepszej)</small>
+      </h3>
       <details className="howto">
         <summary>Jak czytać ocenę?</summary>
         <ul>
@@ -78,13 +86,14 @@ export function PickSuggestions({ picks }: { picks: PickRecommendation[] }) {
         </ul>
       </details>
       <ol className="picks">
-        {picks.map((p) => {
+        {visible.map((p, n) => {
           const v = verdict(p.score.total);
           return (
             <li key={p.championId}>
               <img src={p.image} alt="" />
               <div className="pick-body">
                 <div className="pick-title">
+                  <span className="rank">#{n + 1}</span>
                   <b>{p.name}</b>
                   <span className={`score ${v.cls}`}>{p.score.total}/100</span>
                   <span className={`verdict ${v.cls}`}>{v.label}</span>
@@ -116,6 +125,11 @@ export function PickSuggestions({ picks }: { picks: PickRecommendation[] }) {
           );
         })}
       </ol>
+      {picks.length > INITIAL_VISIBLE && (
+        <button className="secondary" onClick={() => setShowAll(!showAll)}>
+          {showAll ? "Pokaż tylko najlepsze" : `Pokaż wszystkie (${picks.length})`}
+        </button>
+      )}
     </div>
   );
 }

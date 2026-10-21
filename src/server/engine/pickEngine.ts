@@ -1,4 +1,4 @@
-import type { ChampionProfile, DraftState, PickRecommendation, Position, ScoreBreakdown, TeamAnalysis } from "../../shared/types";
+import type { ChampionProfile, DraftState, PickRecommendation, PickScenario, Position, ScoreBreakdown, TeamAnalysis } from "../../shared/types";
 import { POSITIONS } from "../../shared/types";
 import type { GameData } from "../data/gameData";
 import { smoothedWinrate, type StatsStore } from "../data/statsStore";
@@ -210,11 +210,14 @@ export function buildPickContext(draft: DraftState, data: GameData, stats: Stats
   };
 }
 
+/** Ile czołowych propozycji służy za punkt odniesienia w porównaniach ("najlepsza z listy", średni winrate). */
+export const COMPARE_GROUP = 10;
+
 /**
- * Główna funkcja: lista najlepszych picków dla gracza.
+ * Główna funkcja: pełna lista picków dla gracza (wszystkie sensowne postacie na tej pozycji, od najlepszej).
  * 1) buduje pulę postaci grywalnych na danej pozycji, 2) ocenia każdą, 3) sortuje.
  */
-export function recommendPicks(draft: DraftState, data: GameData, stats: StatsStore, limit = 8): PickRecommendation[] {
+export function recommendPicks(draft: DraftState, data: GameData, stats: StatsStore, limit = Infinity): PickRecommendation[] {
   const ctx = buildPickContext(draft, data, stats);
   const unavailable = new Set<number>([
     ...draft.bans,
@@ -237,7 +240,7 @@ export function recommendPicks(draft: DraftState, data: GameData, stats: StatsSt
     })
     .sort((a, b) => b.score.total - a.score.total || b.score.confidence - a.score.confidence)
     .slice(0, limit);
-  compareWithOthers(picks);
+  compareWithOthers(picks, picks.slice(0, COMPARE_GROUP));
   return picks;
 }
 
@@ -251,15 +254,18 @@ const COMPONENT_LABEL: Record<Component, string> = {
 };
 
 /**
- * Wyjaśnia każdą propozycję NA TLE pozostałych z listy – żeby gracz wiedział nie tylko,
+ * Wyjaśnia każdą propozycję NA TLE pozostałych – żeby gracz wiedział nie tylko,
  * że postać jest dobra, ale dlaczego lepsza (albo w czym gorsza) od innych opcji.
+ * Punktem odniesienia jest `group` (czołówka listy), żeby "najlepsza z listy" znaczyło coś
+ * także przy pełnej liście kilkudziesięciu postaci.
  */
-export function compareWithOthers(picks: PickRecommendation[]): void {
-  if (picks.length < 2) return;
+export function compareWithOthers(picks: PickRecommendation[], group: PickRecommendation[] = picks): void {
+  if (picks.length < 2 || group.length < 2) return;
   const mean = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
 
   picks.forEach((p, i) => {
-    const others = picks.filter((o) => o !== p);
+    const inGroup = group.includes(p);
+    const others = group.filter((o) => o !== p);
     const out: string[] = [];
 
     // 1. Pozycja w rankingu: #1 względem #2, pozostali względem #1.
@@ -284,18 +290,81 @@ export function compareWithOthers(picks: PickRecommendation[]): void {
       else if (d <= -0.03) out.push(`Wygrywa rzadziej niż pozostałe propozycje (${pct(p.score.winrate)} wobec średnio ${pct(avg)}) – jest wysoko dzięki innym zaletom.`);
     }
 
-    // 3. W czym jest najlepsza z całej listy.
+    // 3. W czym jest najlepsza z czołówki listy.
     for (const k of COMPONENTS) {
       const second = Math.max(...others.map((o) => o.score[k]));
-      if (p.score[k] > 0.2 && p.score[k] - second > 0.1) out.push(`Najlepsza z listy w kategorii: ${COMPONENT_LABEL[k]}.`);
+      if (inGroup && p.score[k] > 0.2 && p.score[k] - second > 0.1) out.push(`Najlepsza z czołówki w kategorii: ${COMPONENT_LABEL[k]}.`);
     }
 
-    // 4. Popularność – najczęściej grana z propozycji.
+    // 4. Popularność – najczęściej grana z czołowych propozycji.
     const pr = p.score.pickRate;
-    if (pr !== null && pr > 0 && others.every((o) => (o.score.pickRate ?? 0) < pr)) {
+    if (inGroup && pr !== null && pr > 0 && others.every((o) => (o.score.pickRate ?? 0) < pr)) {
       out.push(`Najczęściej wybierana z proponowanych postaci (${pct(pr)} gier na tej pozycji).`);
     }
 
     p.comparison = out.slice(0, 3);
   });
+}
+
+// ------------------------------------------------------------ SCENARIUSZE ---
+
+/** Powody, które mówią o słabości postaci (reszta to zalety). */
+const NEGATIVE_REASON = /^(Trudny przeciwnik|Kolejne obrażenia|Łatwy cel|Miękka i statyczna|Rzadki wybór)/;
+
+const POSITIVE_LABEL: Record<Component, (p: PickRecommendation) => string> = {
+  meta: (p) => `Mocna na tym patchu${p.score.winrate !== null ? ` – wygrywa ${pct(p.score.winrate)} gier` : ""}.`,
+  counter: () => "Dobrze radzi sobie z wybranymi wrogami.",
+  synergy: () => "Dobrze współgra z Twoją drużyną.",
+  composition: () => "Uzupełnia braki w składzie drużyny.",
+};
+const NEGATIVE_LABEL: Record<Component, (p: PickRecommendation) => string> = {
+  meta: (p) => `Słaba na tym patchu${p.score.winrate !== null ? ` – wygrywa tylko ${pct(p.score.winrate)} gier` : ""}.`,
+  counter: () => "Ma problemy z wybranymi wrogami.",
+  synergy: () => "Słabo współgra z Twoją drużyną.",
+  composition: () => "Pogłębia słabości składu zamiast je łatać.",
+};
+
+/**
+ * Trzy scenariusze z pełnej listy picków:
+ *  - idealnie   – najwyżej oceniona postać,
+ *  - neutralnie – postać z oceną najbliższą 50 (ani pomaga, ani szkodzi),
+ *  - koszmarnie – najniżej oceniona z postaci faktycznie granych na tej pozycji.
+ * Każdy dostaje krótkie podsumowanie: co przemawia za nim / przeciw niemu.
+ */
+export function pickScenarios(picks: PickRecommendation[]): PickScenario[] {
+  if (picks.length < 3) return [];
+  const ideal = picks[0];
+  const nightmare = picks[picks.length - 1];
+  const neutral = picks
+    .slice(1, -1)
+    .reduce((best, p) => (Math.abs(p.score.total - 50) < Math.abs(best.score.total - 50) ? p : best));
+
+  const strengths = (p: PickRecommendation) =>
+    COMPONENTS.filter((k) => p.score[k] > 0.15)
+      .sort((a, b) => p.score[b] - p.score[a])
+      .map((k) => POSITIVE_LABEL[k](p));
+  const weaknesses = (p: PickRecommendation) =>
+    COMPONENTS.filter((k) => p.score[k] < -0.15)
+      .sort((a, b) => p.score[a] - p.score[b])
+      .map((k) => NEGATIVE_LABEL[k](p));
+  const goodReasons = (p: PickRecommendation) => p.reasons.filter((r) => !NEGATIVE_REASON.test(r));
+  const badReasons = (p: PickRecommendation) => p.reasons.filter((r) => NEGATIVE_REASON.test(r));
+
+  const idealSummary = [...strengths(ideal).slice(0, 2), ...goodReasons(ideal).slice(0, 2)];
+  const nightmareSummary = [...weaknesses(nightmare).slice(0, 2), ...badReasons(nightmare).slice(0, 2)];
+  const neutralSummary = [
+    "Nie wyróżnia się ani na plus, ani na minus w tym drafcie.",
+    ...strengths(neutral).slice(0, 1).map((s) => `Plus: ${s}`),
+    ...weaknesses(neutral).slice(0, 1).map((s) => `Minus: ${s}`),
+  ];
+
+  return [
+    { kind: "ideal", pick: ideal, summary: idealSummary.length ? idealSummary : ["Najwyżej oceniona postać w tym drafcie."] },
+    { kind: "neutral", pick: neutral, summary: neutralSummary },
+    {
+      kind: "nightmare",
+      pick: nightmare,
+      summary: nightmareSummary.length ? nightmareSummary : ["Najniżej oceniona z granych na tej pozycji – inne opcje są po prostu lepsze."],
+    },
+  ];
 }

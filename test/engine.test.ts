@@ -4,7 +4,7 @@ import type { ChampionProfile, PickRecommendation } from "../src/shared/types";
 import { parseItemStats, type CatalogItem } from "../src/server/data/itemCatalog";
 import { smoothedWinrate } from "../src/server/data/statsStore";
 import { situationalItems, skillLevels } from "../src/server/engine/buildEngine";
-import { compareWithOthers, compositionScore } from "../src/server/engine/pickEngine";
+import { compareWithOthers, compositionScore, pickScenarios } from "../src/server/engine/pickEngine";
 import { analyzeTeam } from "../src/server/engine/teamAnalysis";
 import { parseSession } from "../src/server/lcu/champSelect";
 
@@ -116,4 +116,27 @@ test("porównanie z innymi propozycjami wyjaśnia przewagę #1 i mocne strony po
   assert.ok(picks[0].comparison.some((c) => c.startsWith("Wygrywa częściej niż pozostałe")));
   assert.ok(picks[0].comparison.length <= 3, "najwyżej 3 zdania porównania na postać");
   assert.ok(picks[1].comparison.some((c) => c.includes("Lepsza niż A") && c.includes("radzenie sobie z wybranymi wrogami")));
+});
+
+test("3 scenariusze: idealnie = najlepsza, koszmarnie = najgorsza, neutralnie = ocena najbliższa 50", () => {
+  const pick = (name: string, total: number, s: Partial<PickRecommendation["score"]> = {}, reasons: string[] = []): PickRecommendation => ({
+    championId: nextId++, name, image: "", reasons, comparison: [],
+    score: { meta: 0, counter: 0, synergy: 0, composition: 0, total, confidence: 1, games: 100, winrate: 0.5, pickRate: 0.02, ...s },
+  });
+  const picks = [
+    pick("Top", 70, { meta: 0.7, winrate: 0.56 }),
+    pick("Dobra", 60),
+    pick("Środek", 51),
+    pick("Słaba", 44),
+    pick("Dno", 35, { meta: -0.6, winrate: 0.44 }, ["Trudny przeciwnik: X – wygrywa o 3,0% rzadziej niż zwykle"]),
+  ];
+  const [ideal, neutral, nightmare] = pickScenarios(picks);
+  assert.equal(ideal.kind, "ideal");
+  assert.equal(ideal.pick.name, "Top");
+  assert.equal(neutral.pick.name, "Środek");
+  assert.equal(nightmare.pick.name, "Dno");
+  assert.ok(ideal.summary.some((l) => l.startsWith("Mocna na tym patchu")));
+  assert.ok(nightmare.summary.some((l) => l.startsWith("Słaba na tym patchu")));
+  assert.ok(nightmare.summary.some((l) => l.startsWith("Trudny przeciwnik")));
+  assert.deepEqual(pickScenarios(picks.slice(0, 2)), [], "za mało kandydatów = brak scenariuszy");
 });

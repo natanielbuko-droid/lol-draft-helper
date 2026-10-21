@@ -57,6 +57,7 @@ async function main() {
     ...statsInfo(),
     draft: null,
     picks: [],
+    scenarios: [],
     build: null,
     allyAnalysis: null,
     enemyAnalysis: null,
@@ -71,16 +72,21 @@ async function main() {
       update(statsInfo()); // nagłówek odświeża się także poza champ selectem
       await recompute();
     },
-    applyRunes: async () => {
-      const runes = state.build?.runes;
-      if (!runes || runes.perkIds.length !== 9) {
-        throw new Error("Import możliwy tylko dla pełnej strony run ze statystyk (zbierz dane crawlerem).");
+    applyRunes: async (requested) => {
+      const page = requested ?? state.build?.runes;
+      if (!state.build || !page || page.perkIds.length !== 9) {
+        throw new Error("Brak pełnej strony run do zapisania – wybierz najpierw postać.");
       }
+      // Do klienta wysyłamy tylko runy, które istnieją w bieżącym patchu.
+      const valid =
+        page.perkIds.every((id) => data.perks.has(id)) &&
+        [page.primaryStyleId, page.subStyleId].every((id) => data.perkStyles.some((s) => s.id === id));
+      if (!valid) throw new Error("Ta strona run zawiera runy, których nie ma w bieżącym patchu.");
       await source.applyRunePage({
-        name: `DraftHelper: ${state.build!.championName}`.slice(0, 25),
-        primaryStyleId: runes.primaryStyleId,
-        subStyleId: runes.subStyleId,
-        selectedPerkIds: runes.perkIds,
+        name: `DraftHelper: ${state.build.championName}`.slice(0, 25),
+        primaryStyleId: page.primaryStyleId,
+        subStyleId: page.subStyleId,
+        selectedPerkIds: page.perkIds,
       });
       return "Strona run zapisana w kliencie.";
     },
@@ -93,7 +99,7 @@ async function main() {
 
   async function recompute() {
     if (!lastSession) {
-      update({ draft: null, picks: [], build: null, allyAnalysis: null, enemyAnalysis: null });
+      update({ draft: null, picks: [], scenarios: [], build: null, allyAnalysis: null, enemyAnalysis: null });
       return;
     }
     const draft = parseSession(lastSession, await source.getPickableChampionIds());
