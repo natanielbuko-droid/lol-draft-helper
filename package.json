@@ -1,0 +1,37 @@
+{
+  "name": "lol-draft-helper",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Samowystarczalny asystent draftu i buildów do League of Legends (LCU API + Data Dragon + statystyki z Riot API).",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n server,ui -c blue,magenta \"tsx watch src/server/index.ts\" \"vite\"",
+    "dev:mock": "concurrently -n server,ui -c blue,magenta \"tsx watch src/server/index.ts --mock\" \"vite\"",
+    "start": "vite build && tsx src/server/index.ts",
+    "demo": "vite build && tsx src/server/index.ts --mock",
+    "crawl": "tsx src/crawler/crawl.ts",
+    "test": "node --import tsx --test test/engine.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/ws": "^8.5.13",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  },
+  "engines": {
+    "node": ">=20.12"
+  }
+}
