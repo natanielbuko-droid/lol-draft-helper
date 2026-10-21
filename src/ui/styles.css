@@ -382,3 +382,5 @@ button.link:hover { text-decoration: underline; filter: none; }
 .legal { margin: 28px auto 0; font-size: 10.5px; color: var(--faint); text-align: center; max-width: 900px; }
 ::-webkit-scrollbar { width: 10px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 999px; border: 2px solid var(--bg); }
+.pill.warn { color: var(--ok); border-color: rgba(227, 180, 72, 0.5); background: rgba(227, 180, 72, 0.08); cursor: help; }
+.pill.warn b { color: var(--ok); }
