@@ -31,6 +31,22 @@ export function publicPatch(version: string): string {
 
 const majorMinor = (v: string) => v.split(".").slice(0, 2).join(".");
 
+/** Kody serwerów Riot -> nazwy znane graczom. */
+const SERVER_NAME: Record<string, string> = {
+  eun1: "EUNE",
+  euw1: "EUW",
+  na1: "NA",
+  kr: "KR",
+  br1: "BR",
+  tr1: "TR",
+  jp1: "JP",
+  la1: "LAN",
+  la2: "LAS",
+  oc1: "OCE",
+  ru: "RU",
+  me1: "ME",
+};
+
 function Logo() {
   return (
     <svg className="logo" viewBox="0 0 32 32" aria-hidden>
@@ -42,6 +58,7 @@ function Logo() {
 
 export function Header({ state }: { state: AppState }) {
   const tiers = state.statsTiers?.map((t) => TIER_NAME[t] ?? t).join(" + ");
+  const server = state.statsPlatform ? (SERVER_NAME[state.statsPlatform] ?? state.statsPlatform.toUpperCase()) : null;
   // Statystyki z innego patcha niż aktualna gra – ostrzegamy, bo zmiany balansu mogą je unieważnić.
   const statsOutdated = !!state.statsPatch && majorMinor(state.statsPatch) !== majorMinor(state.patch);
   return (
@@ -73,7 +90,8 @@ export function Header({ state }: { state: AppState }) {
         >
           {state.statsPatch ? (
             <>
-              {statsOutdated && "⚠ "}Statystyki: <b>{tiers ?? "rankingowe"}</b> · {state.statsMatches} meczów · patch {publicPatch(state.statsPatch)}
+              {statsOutdated && "⚠ "}Statystyki: <b>{tiers ?? "rankingowe"}</b>
+              {server && <> · <b>{server}</b></>} · {state.statsMatches} meczów · patch {publicPatch(state.statsPatch)}
               {statsOutdated && " (poprzedni)"}
             </>
           ) : (

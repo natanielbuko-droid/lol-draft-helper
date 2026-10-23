@@ -232,6 +232,8 @@ export interface AppState {
   statsMatches: number;
   /** Rangi graczy, z których meczów pochodzą statystyki, np. ["MASTER", "GRANDMASTER"]. */
   statsTiers: string[] | null;
+  /** Serwer, z którego pochodzą statystyki, np. "eun1". */
+  statsPlatform: string | null;
   draft: DraftState | null;
   picks: PickRecommendation[];
   build: BuildRecommendation | null;

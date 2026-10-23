@@ -47,6 +47,7 @@ async function main() {
     statsPatch: stats.hasData ? stats.current.patch : null,
     statsMatches: stats.current.matches,
     statsTiers: stats.hasData ? (stats.current.tiers ?? null) : null,
+    statsPlatform: stats.hasData ? (stats.current.platform ?? null) : null,
   });
 
   let lastSession: LcuSession | null = null;

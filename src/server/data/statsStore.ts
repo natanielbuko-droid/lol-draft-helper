@@ -20,6 +20,8 @@ export interface StatsFile {
   matches: number;
   /** Rangi graczy, od których pobrano mecze, np. ["MASTER", "GRANDMASTER"]. */
   tiers?: string[];
+  /** Serwer, z którego pochodzą mecze, np. "eun1" (EUNE). */
+  platform?: string;
   /** Przybliżony początek patcha (sekundy) – crawler pyta Riot tylko o nowsze mecze. */
   patchStartTime?: number;
   /** Przybliżony początek NASTĘPNEGO patcha – przy zbieraniu starszego patcha crawler pyta tylko o wcześniejsze mecze. */

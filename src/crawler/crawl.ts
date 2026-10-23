@@ -59,14 +59,19 @@ export async function crawl(opts: CrawlOptions): Promise<StatsFile> {
     seen = new Set();
   }
 
-  // Nie mieszamy lig: jeśli plik zebrano z innych rang, zaczynamy od zera.
+  // Nie mieszamy lig ani serwerów: jeśli plik zebrano z innych rang lub z innego serwera, zaczynamy od zera.
   const tiers = opts.tiers ?? DEFAULT_TIERS;
-  if (stats.matches && stats.tiers?.join(",") !== tiers.join(",")) {
-    console.log(`[crawl] Istniejące statystyki pochodzą z innych rang (${stats.tiers?.join(", ") ?? "nieznane"}) – zaczynam od zera.`);
+  const sameTiers = stats.tiers?.join(",") === tiers.join(",");
+  const samePlatform = (stats.platform ?? opts.platform) === opts.platform;
+  if (stats.matches && (!sameTiers || !samePlatform)) {
+    console.log(
+      `[crawl] Istniejące statystyki pochodzą z ${!samePlatform ? `innego serwera (${stats.platform})` : `innych rang (${stats.tiers?.join(", ") ?? "nieznane"})`} – zaczynam od zera.`,
+    );
     stats = emptyStats(targetPatch);
     seen = new Set();
   }
   stats.tiers = tiers;
+  stats.platform = opts.platform;
 
   // 1) Gracze
   const puuids: string[] = [];
