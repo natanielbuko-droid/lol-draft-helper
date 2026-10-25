@@ -2,6 +2,7 @@ import { BuildPanel } from "./components/BuildPanel";
 import { DraftBoard } from "./components/DraftBoard";
 import { Header } from "./components/Header";
 import { ChampSelectTabs } from "./components/ChampSelectTabs";
+import { JunglePlanCard } from "./components/JunglePlanCard";
 import { TeamPanel } from "./components/TeamPanel";
 import { useAppState } from "./useAppState";
 
@@ -67,6 +68,7 @@ export function App() {
           </div>
           <main className="grid in-game">
             <div className="col">
+              {state.jungle && <JunglePlanCard plan={state.jungle} />}
               {state.build ? <BuildPanel build={state.build} champion={champion} /> : <div className="card muted">Nie wybrano postaci w ostatnim champ selekcie.</div>}
             </div>
             <div className="col">

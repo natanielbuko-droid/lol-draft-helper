@@ -9,19 +9,28 @@ import type { LcuAction, LcuPlayer, LcuSession } from "./champSelect";
  * Pozwala testować aplikację bez uruchamiania gry (`npm run dev:mock`).
  * Nazwy postaci to tylko dane testowe – ich ID są pobierane z aktualnego Data Dragon.
  */
-const ALLIES: [string, string][] = [
-  ["Ornn", "top"],
-  ["LeeSin", "jungle"],
-  ["Ahri", "middle"],
-  ["", "bottom"], // to my – postać wybiera gracz
-  ["Thresh", "utility"],
+interface Scenario {
+  allies: [string, string][]; // [postać, pozycja]; "" = miejsce gracza
+  myPick: string;
+  side: 1 | 2; // 1 = niebieska strona, 2 = czerwona
+}
+/** Demo na zmianę pokazuje draft gracza na ADC i w dżungli (wtedy widać też plan dżungli). */
+const SCENARIOS: Scenario[] = [
+  {
+    allies: [["Ornn", "top"], ["LeeSin", "jungle"], ["Ahri", "middle"], ["", "bottom"], ["Thresh", "utility"]],
+    myPick: "Jinx",
+    side: 1,
+  },
+  {
+    allies: [["Ornn", "top"], ["", "jungle"], ["Ahri", "middle"], ["Jinx", "bottom"], ["Thresh", "utility"]],
+    myPick: "LeeSin",
+    side: 2,
+  },
 ];
 const ENEMIES = ["Darius", "Warwick", "Vladimir", "Samira", "Soraka"];
 const BANS = ["Yasuo", "Zed", "Kaisa", "Morgana"];
-const MY_PICK = "Jinx";
 /** Ile kroków symulacji trwa "gra" po champ selekcie, zanim zacznie się kolejny draft. */
 const IN_GAME_TICKS = 4;
-const LOCAL_CELL = 3;
 
 // Kolejność zdarzeń: [ile sojuszników zablokowało, ilu wrogów, czy hoveruję, czy zablokowałem]
 const TIMELINE: [number, number, boolean, boolean][] = [
@@ -40,7 +49,13 @@ const TIMELINE: [number, number, boolean, boolean][] = [
 
 export class MockLcu extends EventEmitter implements DraftSource {
   private step = 0;
+  private round = 0;
   private timer: NodeJS.Timeout | null = null;
+  private started = false;
+
+  private get scenario(): Scenario {
+    return SCENARIOS[this.round % SCENARIOS.length];
+  }
 
   constructor(
     private data: GameData,
@@ -75,6 +90,8 @@ export class MockLcu extends EventEmitter implements DraftSource {
   private tick(): void {
     if (this.step < TIMELINE.length) {
       if (this.step === 0) this.emit("phase", "ChampSelect");
+      if (this.step === 0 && this.started) this.round++;
+      this.started = true;
       const [alliesLocked, enemiesLocked, hover, lockedMe] = TIMELINE[this.step];
       this.emit("session", this.buildSession(alliesLocked, enemiesLocked, hover, lockedMe));
     } else if (this.step === TIMELINE.length) {
@@ -86,18 +103,21 @@ export class MockLcu extends EventEmitter implements DraftSource {
   }
 
   private buildSession(alliesLocked: number, enemiesLocked: number, hover: boolean, lockedMe: boolean): LcuSession {
+    const { allies: ALLIES, myPick: MY_PICK, side } = this.scenario;
+    const LOCAL_CELL = ALLIES.findIndex(([key]) => key === "");
     const others = ALLIES.map((a, i) => ({ i, key: a[0] })).filter((a) => a.i !== LOCAL_CELL);
     const lockedAllyCells = new Set(others.slice(0, Math.min(alliesLocked, 4)).map((a) => a.i));
 
     const myTeam: LcuPlayer[] = ALLIES.map(([key, pos], i) => {
       const isMe = i === LOCAL_CELL;
       const champ = isMe ? (hover ? this.id(MY_PICK) : 0) : lockedAllyCells.has(i) ? this.id(key) : 0;
-      return { cellId: i, championId: champ, championPickIntent: isMe ? 0 : this.id(key), assignedPosition: pos };
+      return { cellId: i, championId: champ, championPickIntent: isMe ? 0 : this.id(key), assignedPosition: pos, team: side };
     });
     const theirTeam: LcuPlayer[] = ENEMIES.map((key, i) => ({
       cellId: 5 + i,
       championId: i < enemiesLocked ? this.id(key) : 0,
       assignedPosition: "",
+      team: side === 1 ? 2 : 1,
     }));
 
     const actions: LcuAction[] = [

@@ -59,6 +59,7 @@ async function main() {
     draft: null,
     picks: [],
     scenarios: [],
+    jungle: null,
     build: null,
     allyAnalysis: null,
     enemyAnalysis: null,
@@ -100,7 +101,7 @@ async function main() {
 
   async function recompute() {
     if (!lastSession) {
-      update({ draft: null, picks: [], scenarios: [], build: null, allyAnalysis: null, enemyAnalysis: null });
+      update({ draft: null, picks: [], scenarios: [], jungle: null, build: null, allyAnalysis: null, enemyAnalysis: null });
       return;
     }
     const draft = parseSession(lastSession, await source.getPickableChampionIds());

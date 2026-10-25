@@ -6,6 +6,7 @@ import { smoothedWinrate } from "../src/server/data/statsStore";
 import { situationalItems, skillLevels } from "../src/server/engine/buildEngine";
 import { compareWithOthers, compositionScore, pickScenarios } from "../src/server/engine/pickEngine";
 import { analyzeTeam } from "../src/server/engine/teamAnalysis";
+import { clearPath } from "../src/server/engine/jungleEngine";
 import { parseSession } from "../src/server/lcu/champSelect";
 
 // --- Dane testowe (syntetyczne – testy nie potrzebują internetu) ---
@@ -142,4 +143,14 @@ test("3 scenariusze: idealnie = najlepsza, koszmarnie = najgorsza, neutralnie = 
   assert.ok(ideal.summary.some((l) => l.startsWith("Mocna strona: siła na patchu")));
   assert.deepEqual(nightmare.summary, ["vs X (rywal na linii): 41,0% wygranych w 20 meczach – zwykle 50,0%."]);
   assert.deepEqual(pickScenarios(picks.slice(0, 2)), [], "za mało kandydatów = brak scenariuszy");
+});
+
+test("plan dżungli: ścieżka kończy się przy linii do ganku i zależy od strony mapy", () => {
+  // Niebieska strona: górna połowa = Blue/Gromp/Wilki, dolna = Red/Krugi/Raptory.
+  assert.deepEqual(clearPath("gank", "top", "blue"), ["Red buff", "Blue buff", "Gromp"]);
+  assert.deepEqual(clearPath("gank", "bot", "blue"), ["Blue buff", "Red buff", "Krugi"]);
+  assert.deepEqual(clearPath("farm", "top", "blue"), ["Red buff", "Krugi", "Raptory", "Wilki", "Blue buff", "Gromp", "Krab (scuttle)"]);
+  // Czerwona strona: górna połowa = Red/Krugi/Raptory.
+  assert.deepEqual(clearPath("gank", "top", "red"), ["Blue buff", "Red buff", "Krugi"]);
+  assert.equal(clearPath("gank", "top", null).length, 3);
 });

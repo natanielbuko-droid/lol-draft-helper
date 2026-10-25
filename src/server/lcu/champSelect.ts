@@ -15,6 +15,7 @@ export interface LcuPlayer {
   championId: number;
   championPickIntent?: number;
   assignedPosition: string; // "top" | "jungle" | "middle" | "bottom" | "utility" | "" (blind pick)
+  team?: number; // 1 = niebieska strona, 2 = czerwona
 }
 
 export interface LcuAction {
@@ -72,5 +73,6 @@ export function parseSession(session: LcuSession, pickableChampionIds: number[] 
     myPosition: me?.position ?? null,
     myChampionId: me?.championId ?? null,
     pickableChampionIds,
+    mySide: session.myTeam[0]?.team === 1 ? "blue" : session.myTeam[0]?.team === 2 ? "red" : null,
   };
 }

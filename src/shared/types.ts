@@ -66,6 +66,8 @@ export interface DraftState {
   myChampionId: number | null;
   /** Postacie, które gracz może wybrać (z klienta). Puste = brak informacji, zakładamy wszystkie. */
   pickableChampionIds: number[];
+  /** Strona mapy drużyny gracza (z klienta): niebieska (lewy dół) albo czerwona (prawy góra). */
+  mySide: "blue" | "red" | null;
 }
 
 export interface ScoreBreakdown {
@@ -186,6 +188,32 @@ export interface BuildAlternatives {
   summoners: (WinStat & { spells: SpellRef[] })[];
 }
 
+/** Linia, którą jungler może gankować. */
+export type GankLane = "TOP" | "MIDDLE" | "BOTTOM";
+
+export interface GankTarget {
+  lane: GankLane;
+  score: number; // im wyżej, tym lepszy cel
+  verdict: "best" | "good" | "weak";
+  allies: string[];
+  enemies: string[];
+  reasons: Reason[];
+}
+
+export interface JunglePlan {
+  champion: string;
+  style: "gank" | "farm";
+  styleReason: string;
+  side: "blue" | "red" | null;
+  /** Obozy w kolejności (np. ["Red buff", "Blue buff", "Gromp"]). */
+  path: string[];
+  /** Po której stronie mapy kończy się clear i kiedy jungler jest gotowy do akcji. */
+  endsNear: GankLane;
+  readyAt: string;
+  targets: GankTarget[];
+  notes: string[];
+}
+
 /** Trzy scenariusze wyboru: postać pasująca idealnie, neutralnie i koszmarnie do tego draftu. */
 export interface PickScenario {
   kind: "ideal" | "neutral" | "nightmare";
@@ -239,6 +267,8 @@ export interface AppState {
   build: BuildRecommendation | null;
   /** Idealny / neutralny / koszmarny wybór (pusta lista, gdy za mało kandydatów). */
   scenarios: PickScenario[];
+  /** Plan dla gracza na jungli: pierwszy clear i linie do ganku (null, gdy gracz nie gra w dżungli). */
+  jungle: JunglePlan | null;
   allyAnalysis: TeamAnalysis | null;
   enemyAnalysis: TeamAnalysis | null;
   champions: Record<number, { name: string; image: string }>;

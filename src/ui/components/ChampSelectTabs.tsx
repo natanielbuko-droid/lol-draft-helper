@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { AppState } from "../../shared/types";
 import { BuildPanel } from "./BuildPanel";
+import { JunglePlanCard } from "./JunglePlanCard";
 import { PickSuggestions } from "./PickSuggestions";
 import { ScenarioCards } from "./ScenarioCards";
 
@@ -41,7 +42,10 @@ export function ChampSelectTabs({ state }: { state: AppState }) {
           <PickSuggestions picks={state.picks} />
         </>
       ) : state.build ? (
-        <BuildPanel build={state.build} champion={champion} />
+        <>
+          {state.jungle && <JunglePlanCard plan={state.jungle} />}
+          <BuildPanel build={state.build} champion={champion} />
+        </>
       ) : (
         <div className="card hint-card">Najedź na postać w kliencie (hover), aby zobaczyć jej build.</div>
       )}

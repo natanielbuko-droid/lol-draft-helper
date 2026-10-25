@@ -8,7 +8,8 @@ const stripTags = (s: string) => s.replace(/<[^>]+>/g, " ");
 // Frazy, które zawierają słowo "heal", ale oznaczają osłabianie leczenia przeciwnika.
 const ANTI_HEAL = /grievous wounds|reduc\w* (?:\w+ )?heal\w*|wounds/gi;
 const HEALING = /\bheal(?:s|ing|ed)?\b|restores? .{0,25}health|omnivamp|life ?steal|physical vamp|drains?\b/i;
-const DASH = /\bdash(?:es|ing)?\b|\bleaps?\b|\bblinks?\b|\bjumps?\b|\blunges?\b|\bteleports?\b/i;
+// Ucieczka: doskok/skok/teleport, ale też nietykalność i niewidzialność (np. Kałuża Krwi Vladimira).
+const DASH = /\bdash(?:es|ing)?\b|\bleaps?\b|\bblinks?\b|\bjumps?\b|\blunges?\b|\bteleports?\b|\buntargetable\b|\binvisib|\bcamouflage/i;
 const HARD_CC =
   /\bstun|knock(?:s|ed|ing)? (?:up|back|aside)|airborne|suppress|\bcharm|\btaunt|\bfear|\bflee|\bsleep|\broot|\bsnare|immobiliz|\bpulls?\b|\bground(?:s|ed)?\b/i;
 
