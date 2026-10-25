@@ -1,8 +1,7 @@
 import { BuildPanel } from "./components/BuildPanel";
 import { DraftBoard } from "./components/DraftBoard";
 import { Header } from "./components/Header";
-import { PickSuggestions } from "./components/PickSuggestions";
-import { ScenarioCards } from "./components/ScenarioCards";
+import { ChampSelectTabs } from "./components/ChampSelectTabs";
 import { TeamPanel } from "./components/TeamPanel";
 import { useAppState } from "./useAppState";
 
@@ -82,15 +81,7 @@ export function App() {
             <DraftBoard draft={draft} champions={state.champions} />
             <TeamPanel ally={state.allyAnalysis} enemy={state.enemyAnalysis} />
           </div>
-          <div className="col">
-            <ScenarioCards scenarios={state.scenarios} />
-            {state.picks.length > 0 && <PickSuggestions picks={state.picks} />}
-            {state.build ? (
-              <BuildPanel build={state.build} champion={champion} />
-            ) : (
-              <div className="card hint-card">Najedź na postać w kliencie (hover), aby zobaczyć jej build.</div>
-            )}
-          </div>
+          <ChampSelectTabs state={state} />
         </main>
       )}
       {/* Informacja wymagana przez zasady Riot Games dla aplikacji fanowskich */}

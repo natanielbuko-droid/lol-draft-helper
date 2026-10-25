@@ -24,13 +24,14 @@ export function ScenarioCards({ scenarios }: { scenarios: PickScenario[] }) {
                 <img src={s.pick.image} alt="" />
               </div>
               <div className="scenario-name">{s.pick.name}</div>
-              <ScoreRing value={s.pick.score.total} size={44} />
+              <ScoreRing value={s.pick.score.total} size={36} />
             </div>
-            <ul>
-              {s.summary.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
+            {s.summary[0] && (
+              <p className="scenario-reason" title={s.summary.join("\n")}>
+                {s.summary[0]}
+                {s.summary.length > 1 && <span className="more"> +{s.summary.length - 1}</span>}
+              </p>
+            )}
           </article>
         ))}
       </div>

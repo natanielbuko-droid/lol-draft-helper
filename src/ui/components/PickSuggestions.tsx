@@ -3,7 +3,7 @@ import type { PickRecommendation, Reason, ScoreBreakdown } from "../../shared/ty
 import { CardHead, pct, plural, ScoreRing, verdict } from "./ui";
 
 /** Ile propozycji pokazujemy od razu – resztę po kliknięciu "Pokaż wszystkie". */
-const INITIAL_VISIBLE = 10;
+const INITIAL_VISIBLE = 12;
 /** Ile powodów pokazujemy przy postaci (reszta po rozwinięciu). */
 const REASONS_VISIBLE = 4;
 
@@ -80,40 +80,65 @@ function Reasons({ reasons }: { reasons: Reason[] }) {
   );
 }
 
-function PickCard({ p, rank }: { p: PickRecommendation; rank: number }) {
+function PickCard({ p, rank, open, onToggle }: { p: PickRecommendation; rank: number; open: boolean; onToggle: () => void }) {
   const v = verdict(p.score.total);
+  const s = p.score;
   return (
-    <li className={`pick ${rank <= 3 ? "top" : ""}`}>
-      <div className={`rank ${rank <= 3 ? "gold" : ""}`}>#{rank}</div>
-      <div className={`portrait ring-${v.cls}`}>
-        <img src={p.image} alt="" />
-      </div>
-      <div className="pick-body">
-        <div className="pick-title">
-          <h3>{p.name}</h3>
+    <li className={`pick ${rank <= 3 ? "top" : ""} ${open ? "open" : ""}`}>
+      <button className="pick-row" onClick={onToggle} aria-expanded={open} title={open ? "Zwiń" : "Pokaż szczegóły"}>
+        <span className={`rank ${rank <= 3 ? "gold" : ""}`}>#{rank}</span>
+        <span className={`portrait ring-${v.cls}`}>
+          <img src={p.image} alt="" />
+        </span>
+        <span className="pick-main">
+          <span className="pick-name">{p.name}</span>
           <span className={`verdict ${v.cls}`}>{v.label}</span>
+        </span>
+        <span className="pick-quick">
+          {s.winrate !== null ? (
+            <>
+              <span title="Winrate na tej pozycji">
+                WR <b>{pct(s.winrate)}</b>
+              </span>
+              <span title="Jak często postać jest wybierana na tę pozycję">
+                Pick <b>{pct(s.pickRate ?? 0)}</b>
+              </span>
+            </>
+          ) : (
+            <span className="muted">brak danych</span>
+          )}
+        </span>
+        <ScoreRing value={s.total} size={40} />
+        <span className="chevron" aria-hidden>
+          ▾
+        </span>
+      </button>
+      {open && (
+        <div className="pick-details">
+          <Chips s={s} />
+          {p.comparison.length > 0 && (
+            <div className="comparison">
+              <span>Na tle pozostałych</span>
+              <ul>
+                {p.comparison.map((c) => (
+                  <li key={c}>{c}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <Reasons reasons={p.reasons} />
+          <Meters s={s} />
         </div>
-        <Chips s={p.score} />
-        {p.comparison.length > 0 && (
-          <div className="comparison">
-            <span>Na tle pozostałych</span>
-            <ul>
-              {p.comparison.map((c) => (
-                <li key={c}>{c}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-        <Reasons reasons={p.reasons} />
-        <Meters s={p.score} />
-      </div>
-      <ScoreRing value={p.score.total} />
+      )}
     </li>
   );
 }
 
 export function PickSuggestions({ picks }: { picks: PickRecommendation[] }) {
   const [showAll, setShowAll] = useState(false);
+  // Akordeon: rozwinięty jest jeden pick – domyślnie aktualny #1, po kliknięciu wybrany przez gracza (0 = wszystkie zwinięte).
+  const [openId, setOpenId] = useState<number | null>(null);
+  const isOpen = (p: PickRecommendation, rank: number) => (openId === null ? rank === 1 : openId === p.championId);
   const visible = showAll ? picks : picks.slice(0, INITIAL_VISIBLE);
   return (
     <section className="card">
@@ -146,7 +171,13 @@ export function PickSuggestions({ picks }: { picks: PickRecommendation[] }) {
       />
       <ol className="picks">
         {visible.map((p, n) => (
-          <PickCard key={p.championId} p={p} rank={n + 1} />
+          <PickCard
+            key={p.championId}
+            p={p}
+            rank={n + 1}
+            open={isOpen(p, n + 1)}
+            onToggle={() => setOpenId(isOpen(p, n + 1) ? 0 : p.championId)}
+          />
         ))}
       </ol>
       {picks.length > INITIAL_VISIBLE && (

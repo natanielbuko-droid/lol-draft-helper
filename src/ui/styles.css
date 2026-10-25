@@ -384,3 +384,97 @@ button.link:hover { text-decoration: underline; filter: none; }
 ::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 999px; border: 2px solid var(--bg); }
 .pill.warn { color: var(--ok); border-color: rgba(227, 180, 72, 0.5); background: rgba(227, 180, 72, 0.08); cursor: help; }
 .pill.warn b { color: var(--ok); }
+
+/* =====================================================================
+   Układ kompaktowy: zakładki, zwijane wiersze, ciaśniejsze odstępy
+   ===================================================================== */
+.app { max-width: 1280px; }
+.grid { grid-template-columns: minmax(300px, 4fr) minmax(0, 7fr); gap: 14px; }
+.col { gap: 14px; }
+.header { margin-bottom: 14px; padding-top: 10px; padding-bottom: 10px; }
+.card { padding: 12px 14px 14px; }
+.card-head { margin-bottom: 10px; }
+.card-head h2 { font-size: 14px; }
+
+/* Zakładki Picki / Build */
+.tabs { display: flex; gap: 4px; padding: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.tabs button {
+  flex: 1; background: transparent; color: var(--muted); border: 1px solid transparent; box-shadow: none;
+  font-family: var(--font-title); font-size: 13px; letter-spacing: 0.05em; padding: 7px 10px;
+}
+.tabs button:hover:not(:disabled) { color: var(--gold-light); background: var(--panel-2); filter: none; }
+.tabs button.active { color: #1a1206; background: linear-gradient(180deg, #e2c98f, var(--gold) 60%, #a88a50); border-color: var(--gold); }
+.tabs button:disabled { opacity: 0.35; cursor: default; }
+.tabs .count { font-family: var(--font); font-size: 11px; font-weight: 700; margin-left: 4px; padding: 0 6px; border-radius: 999px; background: rgba(0, 0, 0, 0.25); }
+
+/* Draft – mniejsze sloty */
+.team { gap: 2px; }
+.slot { padding: 3px 4px; gap: 8px; }
+.slot .portrait { width: 36px; height: 36px; border-radius: 8px; }
+.slot-meta { font-size: 10px; }
+.team-title { margin-bottom: 6px; padding-bottom: 4px; }
+.bans { margin-top: 10px; padding-top: 8px; }
+.ban { width: 24px; height: 24px; }
+
+/* Analiza składów */
+.tiles { margin-bottom: 6px; }
+.tile { padding: 4px 2px; }
+.tile b { font-size: 15px; }
+.team-notes summary, .alts summary { cursor: pointer; font-size: 11px; color: var(--teal); list-style: none; }
+.team-notes summary::-webkit-details-marker, .alts summary::-webkit-details-marker { display: none; }
+.team-notes summary::before, .alts summary::before { content: "▸ "; }
+.team-notes[open] summary::before, .alts[open] summary::before { content: "▾ "; }
+.team-notes .notes { margin-top: 6px; }
+
+/* 3 scenariusze – zwarte kafelki */
+.scenarios { gap: 8px; }
+.scenario { padding: 9px 10px; }
+.scenario-champ { margin: 6px 0 4px; gap: 8px; }
+.scenario-champ .portrait { width: 38px; height: 38px; }
+.scenario-name { font-size: 14px; }
+.scenario-reason {
+  margin: 0; font-size: 11.5px; color: var(--muted); cursor: help;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.scenario-reason .more { color: var(--teal); font-weight: 600; }
+
+/* Picki – wiersz + rozwijane szczegóły */
+.picks { gap: 6px; }
+.pick { display: block; padding: 0; }
+.pick-row {
+  display: grid; grid-template-columns: 30px 40px minmax(0, 1fr) auto 40px 14px; align-items: center; gap: 10px;
+  width: 100%; padding: 7px 10px; text-align: left; cursor: pointer;
+  background: transparent; border: 0; border-radius: 10px; box-shadow: none; color: var(--text); font-weight: 400;
+}
+.pick-row:hover { filter: none; background: rgba(255, 255, 255, 0.02); }
+.pick-row .rank { padding: 0; }
+.pick-row .portrait { width: 40px; height: 40px; border-radius: 8px; }
+.pick-main { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+.pick-name { font-family: var(--font-title); font-weight: 700; font-size: 15px; color: var(--gold-light); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pick-quick { display: flex; gap: 10px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.pick-quick b { color: var(--text); }
+.ring span { font-size: 13px; }
+.chevron { color: var(--faint); font-size: 12px; transition: transform 0.2s; }
+.pick.open .chevron { transform: rotate(180deg); color: var(--gold); }
+.pick-details { display: flex; flex-direction: column; gap: 8px; padding: 0 12px 12px 92px; }
+@media (max-width: 560px) {
+  .pick-row { grid-template-columns: 24px 36px minmax(0, 1fr) 40px; }
+  .pick-row .pick-quick, .pick-row .chevron { display: none; }
+  .pick-details { padding: 0 10px 10px; }
+}
+
+/* Build – ciaśniej, alternatywy zwijane */
+.build-section { padding: 10px 0; }
+.section-title { margin-bottom: 8px; }
+.item { width: 58px; }
+.item img { width: 40px; height: 40px; }
+.arrow { line-height: 40px; }
+.alts { margin-top: 8px; }
+.alts > ul { margin-top: 6px; }
+.situational { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 6px; }
+.situational li { padding: 6px 8px; }
+.rune-page { gap: 12px; }
+.rune.keystone img { width: 38px; height: 38px; }
+.rune img { width: 24px; height: 24px; }
+.actions { margin-top: 8px; }
+.skill-row > span:not(.key) { height: 18px; line-height: 18px; }

@@ -105,8 +105,8 @@ export function BuildPanel({ build, champion }: { build: BuildRecommendation; ch
         )}
         <ItemPath items={fullBuild} />
         {alt.cores.length > 0 && (
-          <div className="alts">
-            <span className="label">Inne buildy grane przez graczy (3 pierwsze przedmioty)</span>
+          <details className="alts">
+            <summary>Inne buildy grane przez graczy ({alt.cores.length})</summary>
             <ul>
               {alt.cores.map((c) => (
                 <li key={c.items.map((i) => i.id).join(">")}>
@@ -115,7 +115,7 @@ export function BuildPanel({ build, champion }: { build: BuildRecommendation; ch
                 </li>
               ))}
             </ul>
-          </div>
+          </details>
         )}
       </Section>
 
@@ -176,8 +176,8 @@ export function BuildPanel({ build, champion }: { build: BuildRecommendation; ch
             {msg && <span className="muted small">{msg}</span>}
           </div>
           {alt.runes.length > 0 && (
-            <div className="alts">
-              <span className="label">Inne strony run</span>
+            <details className="alts">
+              <summary>Inne strony run ({alt.runes.length})</summary>
               <ul>
                 {alt.runes.map((r) => (
                   <li key={r.page.perkIds.join(",")}>
@@ -202,7 +202,7 @@ export function BuildPanel({ build, champion }: { build: BuildRecommendation; ch
                   </li>
                 ))}
               </ul>
-            </div>
+            </details>
           )}
         </Section>
       )}
@@ -219,8 +219,8 @@ export function BuildPanel({ build, champion }: { build: BuildRecommendation; ch
           </div>
           <p className="muted small">{build.summonerReason}</p>
           {alt.summoners.length > 0 && (
-            <div className="alts">
-              <span className="label">Inne pary</span>
+            <details className="alts">
+              <summary>Inne pary czarów ({alt.summoners.length})</summary>
               <ul>
                 {alt.summoners.map((a) => (
                   <li key={a.spells.map((x) => x.id).join("+")}>
@@ -234,7 +234,7 @@ export function BuildPanel({ build, champion }: { build: BuildRecommendation; ch
                   </li>
                 ))}
               </ul>
-            </div>
+            </details>
           )}
         </Section>
 

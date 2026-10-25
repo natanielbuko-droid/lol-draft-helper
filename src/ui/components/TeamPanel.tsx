@@ -28,11 +28,16 @@ function Team({ title, side, t }: { title: string; side: "ally" | "enemy"; t: Te
           </div>
         ))}
       </div>
-      <ul className="notes">
-        {t.notes.map((n) => (
-          <li key={n}>{n}</li>
-        ))}
-      </ul>
+      {t.notes.length > 0 && (
+        <details className="team-notes">
+          <summary>Szczegóły ({t.notes.length})</summary>
+          <ul className="notes">
+            {t.notes.map((n) => (
+              <li key={n}>{n}</li>
+            ))}
+          </ul>
+        </details>
+      )}
     </div>
   );
 }
