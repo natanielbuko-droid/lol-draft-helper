@@ -83,6 +83,18 @@ export interface ScoreBreakdown {
   winrate: number | null;
   /** Jak często postać jest wybierana na tę pozycję (0..1). */
   pickRate: number | null;
+  /** Jak dobrze gracz zna tę postać (0..1, z maestrii i ostatnich meczów); 0 = nie gra nią. */
+  personal?: number;
+}
+
+/** Doświadczenie gracza na postaci – z klienta LoL (maestria + historia ostatnich meczów). */
+export interface PoolEntry {
+  championId: number;
+  masteryPoints: number;
+  masteryLevel: number;
+  /** Ostatnie mecze tą postacią na Summoner's Rift (z historii w kliencie). */
+  games: number;
+  wins: number;
 }
 
 /** Powód oceny z "tonem": zaleta, wada albo informacja (UI koloruje je różnie). */
@@ -99,6 +111,8 @@ export interface PickRecommendation {
   reasons: Reason[];
   /** Porównanie z pozostałymi propozycjami: dlaczego ta postać jest wyżej/niżej i w czym się wyróżnia. */
   comparison: string[];
+  /** Doświadczenie gracza na tej postaci (gdy jest w jego puli). */
+  mine?: PoolEntry;
 }
 
 export interface ItemRef {
@@ -278,6 +292,8 @@ export interface AppState {
   build: BuildRecommendation | null;
   /** Import buildu do klienta: czy automatycznie po zablokowaniu postaci + wynik ostatniego importu. */
   clientImport: { auto: boolean; status: ImportStatus | null };
+  /** Pula postaci gracza z klienta: ile postaci zna i z ilu ostatnich meczów (null = brak danych). */
+  playerPool: { champions: number; recentGames: number } | null;
   /** Idealny / neutralny / koszmarny wybór (pusta lista, gdy za mało kandydatów). */
   scenarios: PickScenario[];
   /** Plan dla gracza na jungli: pierwszy clear i linie do ganku (null, gdy gracz nie gra w dżungli). */

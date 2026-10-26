@@ -1,4 +1,4 @@
-import type { BuildRecommendation, DraftState, JunglePlan, PickRecommendation, PickScenario, Position, TeamAnalysis } from "../../shared/types";
+import type { BuildRecommendation, DraftState, JunglePlan, PickRecommendation, PickScenario, PoolEntry, Position, TeamAnalysis } from "../../shared/types";
 import type { GameData } from "../data/gameData";
 import type { StatsStore } from "../data/statsStore";
 import { recommendBuild } from "./buildEngine";
@@ -16,13 +16,18 @@ export interface Recommendations {
 }
 
 /** Jeden punkt wejścia do silnika: stan draftu -> pełen zestaw rekomendacji. */
-export function computeRecommendations(draft: DraftState, data: GameData, stats: StatsStore): Recommendations {
-  const ctx = buildPickContext(draft, data, stats);
+export function computeRecommendations(
+  draft: DraftState,
+  data: GameData,
+  stats: StatsStore,
+  pool: Map<number, PoolEntry> = new Map(),
+): Recommendations {
+  const ctx = buildPickContext(draft, data, stats, pool);
   const meSlot = draft.myTeam.find((s) => s.isLocalPlayer);
   const me = draft.myChampionId ? data.champions.get(draft.myChampionId) : undefined;
 
   // Po zablokowaniu postaci lista picków i scenariusze nie są już potrzebne.
-  const picks = meSlot?.locked ? [] : recommendPicks(draft, data, stats);
+  const picks = meSlot?.locked ? [] : recommendPicks(draft, data, stats, pool);
   return {
     picks,
     scenarios: pickScenarios(picks),

@@ -3,6 +3,7 @@ import type {
   DraftState,
   PickRecommendation,
   PickScenario,
+  PoolEntry,
   Position,
   Reason,
   ScoreBreakdown,
@@ -11,6 +12,7 @@ import type {
 import { POSITIONS } from "../../shared/types";
 import type { GameData } from "../data/gameData";
 import { smoothedWinrate, type StatsStore } from "../data/statsStore";
+import { comfortScore } from "../lcu/playerPool";
 import { analyzeTeam, heuristicPositionFit, inferPositions } from "./teamAnalysis";
 import { abilityText, DAMAGE_NAME, inMatches, matches, names, pct, pct0, POSITION_NAME } from "./vocab";
 
@@ -154,7 +156,34 @@ export interface PickContext {
   /** Wszystkie gry na tej pozycji w statystykach i średni udział jednej postaci (do oceny popularności). */
   positionGames: number;
   avgPickRate: number;
+  /** Pula postaci gracza (maestria + ostatnie mecze); pusta = brak danych z klienta. */
+  pool: Map<number, PoolEntry>;
 }
+
+/** Ile punktów oceny (0–100) daje najwyższe doświadczenie gracza na postaci. */
+export const COMFORT_POINTS = 10;
+
+/** Doświadczenie gracza na postaci: premia do oceny i konkretny powód z jego liczbami. */
+export function personalPart(e: PoolEntry | undefined): { comfort: number; points: number; reasons: Reason[] } {
+  if (!e) return { comfort: 0, points: 0, reasons: [] };
+  const comfort = comfortScore(e);
+  let points = COMFORT_POINTS * comfort;
+  const reasons: Reason[] = [];
+  const parts: string[] = [];
+  if (e.masteryPoints > 0) parts.push(`${thousands(e.masteryPoints)} pkt maestrii (poziom ${e.masteryLevel})`);
+  if (e.games > 0) parts.push(`${pct0(e.wins / e.games)} wygranych w ostatnich ${e.games} ${e.games === 1 ? "grze" : "grach"}`);
+  // Forma z ostatnich gier (wygładzona – 5 meczów to jeszcze mało): ±3 punkty.
+  if (e.games >= 5) points += Math.max(-3, Math.min(3, ((e.wins + 5) / (e.games + 10) - 0.5) * 30));
+  if (comfort >= 0.25) {
+    const tone = e.games >= 5 && e.wins / e.games < 0.4 ? info : plus;
+    reasons.push(tone(`Twoja postać: ${parts.join(", ")}.`));
+  } else if (parts.length) {
+    reasons.push(info(`Grasz nią rzadko: ${parts.join(", ")}.`));
+  }
+  return { comfort, points, reasons };
+}
+
+const thousands = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)} tys.` : `${n}`);
 
 /** Pełna ocena jednej postaci: Meta + Counter + Synergy + Composition. */
 export function scoreChampion(c: ChampionProfile, ctx: PickContext, stats: StatsStore): { score: ScoreBreakdown; reasons: Reason[] } {
@@ -226,7 +255,9 @@ export function scoreChampion(c: ChampionProfile, ctx: PickContext, stats: Stats
   const comp = compositionScore(c, ctx.allyAnalysis, ctx.enemyAnalysis, ctx.allies.length);
 
   const weighted = W.meta * meta + W.counter * counter + W.synergy * synergy + W.composition * comp.value;
-  const total = Math.round(50 + 50 * clamp(weighted));
+  // Postać, którą gracz dobrze zna, wygrywa mu częściej niż „idealny” pick, którym nie grał – premia do 10 punktów.
+  const mine = personalPart(ctx.pool.get(c.id));
+  const total = Math.max(0, Math.min(100, Math.round(50 + 50 * clamp(weighted) + mine.points)));
   // Pewność: ile meczów stoi za oceną (gry postaci na pozycji, a gdy są wrogowie – także matchupy).
   const confidence = !stats.hasData
     ? 0.15
@@ -245,9 +276,10 @@ export function scoreChampion(c: ChampionProfile, ctx: PickContext, stats: Stats
       games,
       winrate: games ? base!.wins / games : null,
       pickRate: stats.hasData ? pickRate : null,
+      personal: mine.comfort,
     },
-    // Najpierw to, co dotyczy tego konkretnego draftu (wrogowie, skład, sojusznicy), na końcu meta.
-    reasons: [...counterReasons, ...comp.reasons, ...synergyReasons, ...metaReasons],
+    // Najpierw doświadczenie gracza, potem to, co dotyczy tego draftu (wrogowie, skład, sojusznicy), na końcu meta.
+    reasons: [...mine.reasons, ...counterReasons, ...comp.reasons, ...synergyReasons, ...metaReasons],
   };
 }
 
@@ -258,7 +290,7 @@ export function resolveMyPosition(draft: DraftState, allies: ChampionProfile[], 
   return POSITIONS.find((p) => !taken.includes(p)) ?? "MIDDLE";
 }
 
-export function buildPickContext(draft: DraftState, data: GameData, stats: StatsStore): PickContext {
+export function buildPickContext(draft: DraftState, data: GameData, stats: StatsStore, pool: Map<number, PoolEntry> = new Map()): PickContext {
   const profile = (id: number | null) => (id ? data.champions.get(id) : undefined);
   const allies = draft.myTeam.filter((s) => !s.isLocalPlayer).map((s) => profile(s.championId)).filter((c): c is ChampionProfile => !!c);
   const enemies = draft.enemyTeam.map((s) => profile(s.championId)).filter((c): c is ChampionProfile => !!c);
@@ -273,6 +305,7 @@ export function buildPickContext(draft: DraftState, data: GameData, stats: Stats
     enemyAnalysis: analyzeTeam(enemies),
     positionGames,
     avgPickRate: 1 / Math.max(1, stats.championsOnPosition(position)),
+    pool,
   };
 }
 
@@ -283,8 +316,14 @@ export const COMPARE_GROUP = 10;
  * Główna funkcja: pełna lista picków dla gracza (wszystkie sensowne postacie na tej pozycji, od najlepszej).
  * 1) buduje pulę postaci grywalnych na danej pozycji, 2) ocenia każdą, 3) sortuje.
  */
-export function recommendPicks(draft: DraftState, data: GameData, stats: StatsStore, limit = Infinity): PickRecommendation[] {
-  const ctx = buildPickContext(draft, data, stats);
+export function recommendPicks(
+  draft: DraftState,
+  data: GameData,
+  stats: StatsStore,
+  pool: Map<number, PoolEntry> = new Map(),
+  limit = Infinity,
+): PickRecommendation[] {
+  const ctx = buildPickContext(draft, data, stats, pool);
   const unavailable = new Set<number>([
     ...draft.bans,
     ...draft.enemyTeam.map((s) => s.championId ?? 0),
@@ -297,12 +336,17 @@ export function recommendPicks(draft: DraftState, data: GameData, stats: StatsSt
   const byStats = available.filter((c) => stats.positionGames(c.id, ctx.position) >= minGames);
   const byClass = available.filter((c) => heuristicPositionFit(c, ctx.position) >= 0.45);
   // Mała próbka meczów (np. pierwszy crawl) = za mało postaci ze statystykami -> dokładamy pulę z heurystyki.
-  const pool = byStats.length >= 15 ? byStats : [...new Set([...byStats, ...byClass])];
+  const candidates = byStats.length >= 15 ? byStats : [...new Set([...byStats, ...byClass])];
+  // Postacie, które gracz dobrze zna, dokładamy nawet poniżej progu popularności – o ile w ogóle grają tę pozycję.
+  const comfortPicks = available.filter(
+    (c) => comfortScore(pool.get(c.id)) >= 0.4 && (stats.positionGames(c.id, ctx.position) >= 5 || heuristicPositionFit(c, ctx.position) >= 0.45),
+  );
 
-  const picks = pool
+  const picks = [...new Set([...candidates, ...comfortPicks])]
     .map((c): PickRecommendation => {
       const { score, reasons } = scoreChampion(c, ctx, stats);
-      return { championId: c.id, name: c.name, image: c.image, score, reasons, comparison: [] };
+      const mine = pool.get(c.id);
+      return { championId: c.id, name: c.name, image: c.image, score, reasons, comparison: [], ...(mine ? { mine } : {}) };
     })
     .sort((a, b) => b.score.total - a.score.total || b.score.confidence - a.score.confidence)
     .slice(0, limit);

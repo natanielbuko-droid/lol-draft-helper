@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { AppState } from "../shared/types";
+import type { AppState, PoolEntry } from "../shared/types";
 import { choosePort, openUrl, startApiServer } from "./api/server";
 import { importBuild, loadSettings, saveSettings } from "./clientImport";
 import { loadConfig } from "./config";
@@ -57,6 +57,7 @@ async function main() {
   let autoImportedFor: number | null = null;
   let state: AppState = {
     clientImport: { auto: settings.autoImport, status: null },
+    playerPool: null,
     connection: "disconnected",
     gameflowPhase: "None",
     patch: data.version,
@@ -113,6 +114,18 @@ async function main() {
     api.broadcast(state);
   };
 
+  /** Pula postaci gracza z klienta (maestria + ostatnie mecze) – odświeżana przy połączeniu i każdym champ selekcie. */
+  let pool = new Map<number, PoolEntry>();
+  async function refreshPool() {
+    const entries = await source.getPlayerPool().catch(() => []);
+    if (!entries.length) return;
+    pool = new Map(entries.map((e) => [e.championId, e]));
+    const recentGames = entries.reduce((n, e) => n + e.games, 0);
+    console.log(`[pula] ${entries.length} postaci z maestrią lub ostatnimi grami (${recentGames} ostatnich meczów).`);
+    update({ playerPool: { champions: entries.length, recentGames } });
+    if (lastSession) await recompute();
+  }
+
   /** Import buildu do klienta; wynik trafia do UI. */
   async function runImport(auto: boolean) {
     if (!state.build) return;
@@ -129,7 +142,7 @@ async function main() {
       return;
     }
     const draft = parseSession(lastSession, await source.getPickableChampionIds());
-    const rec = computeRecommendations(draft, data, stats);
+    const rec = computeRecommendations(draft, data, stats, pool);
     update({ draft, ...rec, ...statsInfo() });
 
     // Automatyczny import, gdy gracz zablokuje postać (raz na postać w danym champ selekcie).
@@ -140,11 +153,17 @@ async function main() {
     }
   }
 
-  source.on("status", (connection) => update({ connection }));
+  source.on("status", (connection) => {
+    update({ connection });
+    if (connection === "connected" || connection === "mock") void refreshPool();
+  });
   // Po champ selekcie (ładowanie, gra, ekran końcowy) zostawiamy ostatni draft i build na ekranie –
   // gracz zagląda do buildu właśnie w trakcie gry. Zastąpi je dopiero następny champ select.
   source.on("phase", (gameflowPhase: string) => {
-    if (gameflowPhase === "ChampSelect") autoImportedFor = null; // nowy champ select – można importować ponownie
+    if (gameflowPhase === "ChampSelect") {
+      autoImportedFor = null; // nowy champ select – można importować ponownie
+      void refreshPool(); // świeża maestria i historia po ostatniej grze
+    }
     update({ gameflowPhase });
   });
   source.on("session", (session: LcuSession | null) => {

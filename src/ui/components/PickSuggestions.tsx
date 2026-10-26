@@ -1,11 +1,16 @@
 import { useState } from "react";
-import type { PickRecommendation, Reason, ScoreBreakdown } from "../../shared/types";
+import type { PickRecommendation, PoolEntry, Reason, ScoreBreakdown } from "../../shared/types";
 import { CardHead, pct, plural, ScoreRing, verdict } from "./ui";
 
 /** Ile propozycji pokazujemy od razu – resztę po kliknięciu "Pokaż wszystkie". */
 const INITIAL_VISIBLE = 12;
 /** Ile powodów pokazujemy przy postaci (reszta po rozwinięciu). */
 const REASONS_VISIBLE = 4;
+/** Od jakiego doświadczenia (0..1) postać liczy się do „Twojej puli”. */
+const MINE_MIN = 0.25;
+
+const isMine = (p: PickRecommendation) => (p.score.personal ?? 0) >= MINE_MIN;
+const thousands = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)} tys.` : `${n}`);
 
 function confidenceLabel(c: number): string {
   if (c >= 0.6) return "dużo danych";
@@ -33,14 +38,37 @@ function Meters({ s }: { s: ScoreBreakdown }) {
       <Meter label="Przeciw wrogom" hint="jak radzi sobie przeciw wybranym przeciwnikom" value={s.counter} />
       <Meter label="Z sojusznikami" hint="jak wygrywa razem z Twoją drużyną" value={s.synergy} />
       <Meter label="Pasuje do składu" hint="czy uzupełnia braki drużyny (obrażenia AD/AP, tank, CC)" value={s.composition} />
+      {(s.personal ?? 0) > 0 && <Meter label="Twoje doświadczenie" hint="maestria i ostatnie mecze tą postacią" value={s.personal!} />}
     </div>
   );
 }
 
-function Chips({ s }: { s: ScoreBreakdown }) {
-  if (s.winrate === null) return <div className="chips"><span className="chip">Brak meczów w statystykach – ocena z klasy postaci i składu</span></div>;
+function MineChip({ m }: { m?: PoolEntry }) {
+  if (!m) return null;
+  return (
+    <span className="chip mine" title="Z Twojego klienta LoL: punkty maestrii i wyniki ostatnich meczów">
+      Ty: <b>{thousands(m.masteryPoints)}</b> pkt maestrii
+      {m.games > 0 && (
+        <>
+          {" "}
+          · <b>{m.wins}/{m.games}</b> wygranych
+        </>
+      )}
+    </span>
+  );
+}
+
+function Chips({ s, mine }: { s: ScoreBreakdown; mine?: PoolEntry }) {
+  if (s.winrate === null)
+    return (
+      <div className="chips">
+        <MineChip m={mine} />
+        <span className="chip">Brak meczów w statystykach – ocena z klasy postaci i składu</span>
+      </div>
+    );
   return (
     <div className="chips">
+      <MineChip m={mine} />
       <span className="chip" title="Odsetek wygranych gier na tej pozycji">
         Winrate <b>{pct(s.winrate)}</b>
       </span>
@@ -92,6 +120,11 @@ function PickCard({ p, rank, open, onToggle }: { p: PickRecommendation; rank: nu
         </span>
         <span className="pick-main">
           <span className="pick-name">{p.name}</span>
+          {isMine(p) && (
+            <span className="mine-badge" title="Postać z Twojej puli – znasz ją (maestria / ostatnie mecze)">
+              Twoja
+            </span>
+          )}
           <span className={`verdict ${v.cls}`}>{v.label}</span>
         </span>
         <span className="pick-quick">
@@ -115,7 +148,7 @@ function PickCard({ p, rank, open, onToggle }: { p: PickRecommendation; rank: nu
       </button>
       {open && (
         <div className="pick-details">
-          <Chips s={s} />
+          <Chips s={s} mine={p.mine} />
           {p.comparison.length > 0 && (
             <div className="comparison">
               <span>Na tle pozostałych</span>
@@ -138,13 +171,19 @@ export function PickSuggestions({ picks }: { picks: PickRecommendation[] }) {
   const [showAll, setShowAll] = useState(false);
   // Akordeon: rozwinięty jest jeden pick – domyślnie aktualny #1, po kliknięciu wybrany przez gracza (0 = wszystkie zwinięte).
   const [openId, setOpenId] = useState<number | null>(null);
-  const isOpen = (p: PickRecommendation, rank: number) => (openId === null ? rank === 1 : openId === p.championId);
-  const visible = showAll ? picks : picks.slice(0, INITIAL_VISIBLE);
+  const [onlyMine, setOnlyMine] = useState(false);
+  const mineCount = picks.filter(isMine).length;
+  const filterOn = onlyMine && mineCount > 0;
+  // Numer zawsze z pełnego rankingu – filtr tylko ukrywa postacie spoza puli.
+  const ranked = picks.map((p, i) => ({ p, rank: i + 1 })).filter(({ p }) => !filterOn || isMine(p));
+  const firstRank = ranked[0]?.rank;
+  const isOpen = (p: PickRecommendation, rank: number) => (openId === null ? rank === firstRank : openId === p.championId);
+  const visible = showAll || filterOn ? ranked : ranked.slice(0, INITIAL_VISIBLE);
   return (
     <section className="card">
       <CardHead
         title="Rekomendowane picki"
-        sub={`${picks.length} postaci grywalnych na tej pozycji, od najlepszej`}
+        sub={`${picks.length} postaci grywalnych na tej pozycji, od najlepszej${mineCount ? ` · ${mineCount} z Twojej puli` : ""}`}
         right={
           <details className="howto">
             <summary>Jak czytać ocenę?</summary>
@@ -162,6 +201,10 @@ export function PickSuggestions({ picks }: { picks: PickRecommendation[] }) {
                 <b>Pasuje do składu</b> – czy uzupełnia braki drużyny, np. dodaje obrażenia magiczne albo tanka.
               </p>
               <p>
+                <b>Twoja</b> – postać, którą znasz (maestria i ostatnie mecze z klienta LoL). Dostaje do 10 punktów premii: dobrze
+                opanowana postać zwykle wygrywa częściej niż „idealny” pick bez doświadczenia.
+              </p>
+              <p>
                 <span className="tone-inline plus">✓</span> zaleta · <span className="tone-inline minus">✕</span> wada ·{" "}
                 <span className="tone-inline info">i</span> informacja. „Mało danych” – ocena opiera się na niewielu meczach.
               </p>
@@ -169,18 +212,21 @@ export function PickSuggestions({ picks }: { picks: PickRecommendation[] }) {
           </details>
         }
       />
+      {mineCount > 0 && (
+        <div className="pick-filter">
+          <label className="switch" title="Pokaż tylko postacie, którymi grasz">
+            <input type="checkbox" checked={onlyMine} onChange={() => setOnlyMine(!onlyMine)} />
+            <span className="slider" />
+            <span className="switch-label">Tylko moja pula ({mineCount})</span>
+          </label>
+        </div>
+      )}
       <ol className="picks">
-        {visible.map((p, n) => (
-          <PickCard
-            key={p.championId}
-            p={p}
-            rank={n + 1}
-            open={isOpen(p, n + 1)}
-            onToggle={() => setOpenId(isOpen(p, n + 1) ? 0 : p.championId)}
-          />
+        {visible.map(({ p, rank }) => (
+          <PickCard key={p.championId} p={p} rank={rank} open={isOpen(p, rank)} onToggle={() => setOpenId(isOpen(p, rank) ? 0 : p.championId)} />
         ))}
       </ol>
-      {picks.length > INITIAL_VISIBLE && (
+      {!filterOn && picks.length > INITIAL_VISIBLE && (
         <button className="secondary wide" onClick={() => setShowAll(!showAll)}>
           {showAll ? "Pokaż tylko najlepsze" : `Pokaż wszystkie (${picks.length})`}
         </button>

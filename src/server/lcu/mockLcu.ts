@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import type { ConnectionStatus } from "../../shared/types";
+import type { ConnectionStatus, PoolEntry } from "../../shared/types";
 import type { GameData } from "../data/gameData";
 import type { DraftSource } from "./lcuClient";
 import type { LcuAction, LcuPlayer, LcuSession } from "./champSelect";
@@ -29,6 +29,15 @@ const SCENARIOS: Scenario[] = [
 ];
 const ENEMIES = ["Darius", "Warwick", "Vladimir", "Samira", "Soraka"];
 const BANS = ["Yasuo", "Zed", "Kaisa", "Morgana"];
+/** Przykładowa pula gracza w demo: [postać, punkty maestrii, poziom, ostatnie gry, wygrane]. */
+const MY_POOL: [string, number, number, number, number][] = [
+  ["Jinx", 182_000, 12, 14, 9],
+  ["Ezreal", 64_000, 7, 6, 2],
+  ["Caitlyn", 23_000, 5, 3, 2],
+  ["LeeSin", 96_000, 9, 12, 7],
+  ["Viego", 31_000, 6, 4, 3],
+  ["Ahri", 8_000, 3, 0, 0],
+];
 /** Ile kroków symulacji trwa "gra" po champ selekcie, zanim zacznie się kolejny draft. */
 const IN_GAME_TICKS = 4;
 
@@ -77,6 +86,12 @@ export class MockLcu extends EventEmitter implements DraftSource {
 
   async getPickableChampionIds(): Promise<number[]> {
     return [];
+  }
+
+  async getPlayerPool(): Promise<PoolEntry[]> {
+    return MY_POOL.map(([key, masteryPoints, masteryLevel, games, wins]) => ({ championId: this.id(key), masteryPoints, masteryLevel, games, wins })).filter(
+      (e) => e.championId > 0,
+    );
   }
 
   async applyRunePage(): Promise<void> {

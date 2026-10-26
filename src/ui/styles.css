@@ -522,3 +522,13 @@ button.link:hover { text-decoration: underline; filter: none; }
 .import-status li { display: flex; align-items: center; gap: 6px; }
 .import-status .ok .tone { background: rgba(54, 194, 124, 0.16); color: var(--pos); }
 .import-status .fail .tone { background: rgba(232, 64, 87, 0.16); color: var(--neg); }
+
+/* --- Twoja pula postaci --- */
+.mine-badge {
+  font-size: 10px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--teal); border: 1px solid rgba(10, 200, 185, 0.45); background: rgba(10, 200, 185, 0.1);
+  border-radius: 4px; padding: 1px 6px;
+}
+.chip.mine { color: var(--teal); border-color: rgba(10, 200, 185, 0.35); }
+.chip.mine b { color: var(--gold-light); }
+.pick-filter { display: flex; justify-content: flex-end; margin: -6px 0 10px; }

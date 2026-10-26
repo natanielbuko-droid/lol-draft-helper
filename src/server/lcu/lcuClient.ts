@@ -1,9 +1,10 @@
 import { EventEmitter } from "node:events";
 import https from "node:https";
 import WebSocket from "ws";
-import type { ConnectionStatus } from "../../shared/types";
+import type { ConnectionStatus, PoolEntry } from "../../shared/types";
 import { findLcuCredentials, type LcuCredentials } from "./credentials";
 import type { LcuSession } from "./champSelect";
+import { buildPlayerPool, recentGames, type LcuMastery, type LcuMatchHistory } from "./playerPool";
 
 /**
  * Wspólny interfejs źródła draftu – prawdziwy klient LoL albo symulator (MockLcu).
@@ -18,6 +19,8 @@ export interface DraftSource extends EventEmitter {
   applySummonerSpells(spell1Id: number, spell2Id: number): Promise<void>;
   /** Zapisuje zestaw przedmiotów widoczny w sklepie w grze (zastępuje poprzedni zestaw tej aplikacji). */
   applyItemSet(set: ItemSetInput): Promise<void>;
+  /** Pula postaci gracza: maestria i ostatnie mecze (pusta, gdy klient nie odpowiada). */
+  getPlayerPool(): Promise<PoolEntry[]>;
 }
 
 export interface ItemSetInput {
@@ -173,6 +176,14 @@ export class LcuClient extends EventEmitter implements DraftSource {
       }
       throw err;
     }
+  }
+
+  async getPlayerPool(): Promise<PoolEntry[]> {
+    const [mastery, history] = await Promise.all([
+      this.request<LcuMastery[]>("GET", "/lol-champion-mastery/v1/local-player/champion-mastery").catch(() => []),
+      this.request<LcuMatchHistory>("GET", "/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=0&endIndex=49").catch(() => null),
+    ]);
+    return buildPlayerPool(mastery, recentGames(history));
   }
 
   async applySummonerSpells(spell1Id: number, spell2Id: number): Promise<void> {

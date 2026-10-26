@@ -4,7 +4,8 @@ import type { ChampionProfile, PickRecommendation } from "../src/shared/types";
 import { parseItemStats, type CatalogItem } from "../src/server/data/itemCatalog";
 import { smoothedWinrate } from "../src/server/data/statsStore";
 import { situationalItems, skillLevels } from "../src/server/engine/buildEngine";
-import { compareWithOthers, compositionScore, pickScenarios } from "../src/server/engine/pickEngine";
+import { compareWithOthers, compositionScore, personalPart, pickScenarios } from "../src/server/engine/pickEngine";
+import { buildPlayerPool, comfortScore, recentGames } from "../src/server/lcu/playerPool";
 import { analyzeTeam } from "../src/server/engine/teamAnalysis";
 import { clearPath } from "../src/server/engine/jungleEngine";
 import { orderSpells } from "../src/server/clientImport";
@@ -161,4 +162,25 @@ test("import: Flash zostaje na klawiszu gracza (D albo F)", () => {
   assert.deepEqual(orderSpells([4, 7], { spell1Id: 14, spell2Id: 4 }), [7, 4]); // Flash na F
   assert.deepEqual(orderSpells([7, 4], null), [4, 7]); // brak danych – Flash na D
   assert.deepEqual(orderSpells([11, 14], { spell1Id: 4, spell2Id: 11 }), [11, 14]); // bez Flasha – bez zmian
+});
+
+test("pula gracza: maestria + ostatnie mecze, premia i powód z liczbami", () => {
+  const games = recentGames({
+    games: {
+      games: [
+        { queueId: 420, participants: [{ championId: 222, stats: { win: true } }] },
+        { queueId: 420, participants: [{ championId: 222, stats: { win: false } }] },
+        { queueId: 450, participants: [{ championId: 222, stats: { win: true } }] }, // ARAM – nie liczymy
+      ],
+    },
+  });
+  assert.equal(games.length, 2);
+  const pool = buildPlayerPool([{ championId: 222, championPoints: 182_000, championLevel: 12 }, { championId: 1, championPoints: 0, championLevel: 0 }], games);
+  assert.deepEqual(pool, [{ championId: 222, masteryPoints: 182_000, masteryLevel: 12, games: 2, wins: 1 }]);
+  assert.ok(comfortScore(pool[0]) > 0.6);
+  assert.equal(comfortScore(undefined), 0);
+  const part = personalPart(pool[0]);
+  assert.ok(part.points > 6 && part.points <= 10);
+  assert.equal(part.reasons[0].text, "Twoja postać: 182 tys. pkt maestrii (poziom 12), 50% wygranych w ostatnich 2 grach.");
+  assert.equal(personalPart(undefined).points, 0);
 });
