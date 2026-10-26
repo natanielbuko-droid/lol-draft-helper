@@ -21,7 +21,9 @@ npx wrangler deploy
 `wrangler login` otwiera przeglądarkę – zaloguj się i zatwierdź dostęp. `secret put` pyta o klucz (wklej go tam,
 nie do czatu ani do plików). `deploy` wypisze adres w stylu `https://lol-draft-helper-relay.<konto>.workers.dev`.
 
-Ten adres trafia do aplikacji jako domyślny `PLAYER_API_URL` (`src/server/config.ts`).
+Ten adres trafia do aplikacji jako domyślny `PLAYER_API_URL` (`DEFAULT_PLAYER_API_URL` w `src/server/config.ts`).
+
+**Wdrożony adres:** https://lol-draft-helper-relay.loldrafthelper.workers.dev (`/health` – czy działa).
 
 ## Zmiana klucza
 

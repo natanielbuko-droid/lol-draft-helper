@@ -37,9 +37,10 @@ Polish-speaking players. It helps players during champion select and lets them b
   Profile search works only for a Riot ID typed in manually by the user.
 - No features give an unfair advantage: no in-game overlays with hidden information, no automation of gameplay,
   no scripting. All in-game information shown (builds, item suggestions) is general guidance.
-- The API key is never distributed with the client. With the production key, requests will go through a small
-  server we run, which caches match data (matches never change) and respects rate limits. Until then the feature
-  only works for developers using their own development key.
+- The API key is never distributed with the client. Profile requests go through a small relay we run on
+  Cloudflare Workers (source: `relay/` in the repository). It holds the key as a server-side secret, forwards ONLY
+  the six endpoints listed below (everything else is rejected), and caches responses (matches for a week,
+  profiles for minutes) to keep request volume low.
 - The app is and will remain free. It displays the required legal notice ("LoL Draft Helper isn't endorsed by
   Riot Games…").
 

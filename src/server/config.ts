@@ -1,6 +1,9 @@
 import path from "node:path";
 import { loadEnvFile } from "./env";
 
+/** Przekaźnik Riot API wyszukiwarki graczy (relay/, Cloudflare Workers) – działa bez klucza po stronie aplikacji. */
+export const DEFAULT_PLAYER_API_URL = "https://lol-draft-helper-relay.loldrafthelper.workers.dev";
+
 /**
  * Cała konfiguracja w jednym miejscu. Wartości można nadpisać zmiennymi środowiskowymi,
  * więc nic nie trzeba zmieniać w kodzie przy nowym patchu.
@@ -43,7 +46,8 @@ export function loadConfig(argv: string[] = process.argv): AppConfig {
     statsUrl: env.STATS_URL ?? null,
     riotApiKey: env.RIOT_API_KEY ?? null,
     riotPlatform: env.RIOT_PLATFORM ?? "euw1",
-    playerApiUrl: env.PLAYER_API_URL ?? null,
+    // PLAYER_API_URL= (puste) wyłącza przekaźnik, np. do testów samego klucza z .env.
+    playerApiUrl: env.PLAYER_API_URL === undefined ? DEFAULT_PLAYER_API_URL : env.PLAYER_API_URL || null,
     autoCrawlHours: Number(env.AUTO_CRAWL_HOURS ?? 0),
     lolInstallPath: env.LOL_PATH ?? null,
   };
