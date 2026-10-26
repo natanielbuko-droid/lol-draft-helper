@@ -109,6 +109,8 @@ export class RiotApi {
     const res = await fetch(url, this.apiKey ? { headers: { "X-Riot-Token": this.apiKey } } : {});
     this.updateLimits(res.headers.get("X-App-Rate-Limit"));
     if (res.status === 404) return null;
+    // Przekaźnik bez klucza (np. przed zatwierdzeniem klucza produkcyjnego) – ponawianie nic nie da.
+    if (this.relayUrl && res.status === 503) throw new Error("RELAY_NO_KEY");
     if (res.status === 429 || res.status >= 500) {
       if (attempt >= 4) throw new Error(`Riot API ${res.status} po ${attempt} próbach: ${url}`);
       await sleep(Number(res.headers.get("Retry-After") ?? 2 ** attempt) * 1000);

@@ -116,6 +116,9 @@ export class PlayerService {
       if (err instanceof PlayerError) throw err;
       const msg = (err as Error).message;
       const relay = this.mode === "proxy";
+      if (msg === "RELAY_NO_KEY") {
+        throw new PlayerError("Wyszukiwarka graczy ruszy po zatwierdzeniu klucza przez Riot Games – czekamy na ich decyzję. Reszta aplikacji działa normalnie.", 503);
+      }
       if (/klucz/i.test(msg)) {
         throw new PlayerError(
           relay
