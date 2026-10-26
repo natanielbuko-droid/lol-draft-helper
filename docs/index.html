@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LoL Draft Helper</title>
+  <meta name="description" content="Darmowy asystent draftu i buildów do League of Legends: rekomendacje picków w champ selekcie, build pod wroga, automatyczny import run i przedmiotów, tier lista." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #050b14;
+      --panel: #0c1524;
+      --line: #1c2b40;
+      --gold: #c8aa6e;
+      --gold-light: #f0e6d2;
+      --teal: #0ac8b9;
+      --text: #e6e0d2;
+      --muted: #8a96a8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: Inter, system-ui, "Segoe UI", sans-serif; color: var(--text); line-height: 1.55;
+      background: radial-gradient(120% 80% at 50% -10%, #0e2a3a 0%, var(--bg) 55%) fixed, var(--bg);
+    }
+    main { max-width: 980px; margin: 0 auto; padding: 48px 16px 32px; }
+    header { text-align: center; }
+    .logo { width: 64px; height: 64px; }
+    h1 { font-family: Cinzel, Georgia, serif; color: var(--gold-light); font-size: clamp(28px, 6vw, 44px); letter-spacing: 0.04em; margin: 12px 0 6px; }
+    .lead { color: var(--muted); font-size: 17px; max-width: 640px; margin: 0 auto 26px; }
+    .cta { display: inline-block; padding: 13px 26px; border-radius: 10px; font-weight: 600; text-decoration: none; color: #1a1206;
+      background: linear-gradient(180deg, #e2c98f, var(--gold) 60%, #a88a50); border: 1px solid var(--gold); }
+    .sub-cta { display: block; margin-top: 10px; font-size: 13px; color: var(--muted); }
+    .sub-cta a { color: var(--teal); }
+    .shot { display: block; width: 100%; margin: 36px 0; border-radius: 14px; border: 1px solid var(--line); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); }
+    h2 { font-family: Cinzel, Georgia, serif; color: var(--gold-light); letter-spacing: 0.05em; font-size: 20px; margin: 36px 0 14px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+    .card b { color: var(--gold-light); display: block; margin-bottom: 4px; }
+    .card p { margin: 0; color: var(--muted); font-size: 14px; }
+    ol { padding-left: 20px; color: var(--muted); }
+    ol b { color: var(--text); }
+    footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 12px; color: #5b6779; text-align: center; }
+    footer a { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M16 2l12 7v14l-12 7-12-7V9z" fill="#091428" stroke="#c8aa6e" stroke-width="2" />
+        <path d="M16 9l6 3.5v7L16 23l-6-3.5v-7z" fill="#0ac8b9" />
+      </svg>
+      <h1>LoL Draft Helper</h1>
+      <p class="lead">Darmowy asystent do League of Legends: lepszy pick w champ selekcie, build pod skład wroga i runy ustawione same – zanim zacznie się gra.</p>
+      <a class="cta" href="https://github.com/natanielbuko-droid/lol-draft-helper/releases/latest">Pobierz dla Windows</a>
+      <span class="sub-cta">Darmowa, bez reklam · otwarty kod: <a href="https://github.com/natanielbuko-droid/lol-draft-helper">GitHub</a></span>
+    </header>
+
+    <img class="shot" src="screenshot.jpg" alt="LoL Draft Helper w champ selekcie – rekomendacje picków, analiza składów i build" />
+
+    <h2>Co potrafi</h2>
+    <div class="grid">
+      <div class="card"><b>Draft na żywo</b><p>Ranking postaci na Twoją pozycję: siła na patchu, kontry na wybranych wrogów, synergia z drużyną i braki w składzie.</p></div>
+      <div class="card"><b>Build pod wroga</b><p>Core, przedmioty sytuacyjne pod skład przeciwnika, runy, czary i kolejność umiejętności – plus inne warianty graczy.</p></div>
+      <div class="card"><b>Automatyczny import</b><p>Po zablokowaniu postaci runy, czary i zestaw przedmiotów w sklepie ustawiają się same (tylko własne strony aplikacji).</p></div>
+      <div class="card"><b>Twoja pula postaci</b><p>Postacie, którymi grasz najczęściej i najlepiej, dostają premię w rekomendacjach.</p></div>
+      <div class="card"><b>Plan dżungli</b><p>Pierwszy clear zależny od strony mapy i linie warte ganku na podstawie draftu.</p></div>
+      <div class="card"><b>Tier lista i postacie</b><p>Najmocniejsze postacie na patchu, strona każdej postaci z buildem, matchupami i synergiami, archetypy składów.</p></div>
+    </div>
+
+    <h2>Jak zacząć</h2>
+    <ol>
+      <li><b>Pobierz instalator</b> z <a href="https://github.com/natanielbuko-droid/lol-draft-helper/releases/latest" style="color: var(--teal)">ostatniego wydania</a> i uruchom go.</li>
+      <li>Jeśli Windows pokaże „System Windows ochronił ten komputer”, kliknij <b>Więcej informacji → Uruchom mimo to</b>.</li>
+      <li><b>Włącz klienta League of Legends</b> i wejdź do champ selectu – rekomendacje pojawią się same.</li>
+    </ol>
+    <p style="color: var(--muted); font-size: 14px">Statystyki pochodzą z rankingowych meczów graczy Master i Grandmaster. Aplikacja aktualizuje się sama.</p>
+
+    <footer>
+      LoL Draft Helper isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in
+      producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of
+      Riot Games, Inc.
+      <br /><br />
+      <a href="https://github.com/natanielbuko-droid/lol-draft-helper/issues">Zgłoś błąd lub pomysł</a>
+    </footer>
+  </main>
+</body>
+</html>
