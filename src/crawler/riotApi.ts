@@ -66,9 +66,13 @@ export class RiotApi {
   ];
   readonly region: string;
 
+  /**
+   * `relayUrl` – przekaźnik z kluczem po stronie serwera (relay/): zapytania idą przez niego i bez nagłówka z kluczem.
+   */
   constructor(
     private apiKey: string,
     readonly platform: string,
+    private relayUrl: string | null = null,
   ) {
     this.region = PLATFORM_TO_REGION[platform] ?? "europe";
   }
@@ -102,7 +106,7 @@ export class RiotApi {
 
   async get<T>(url: string, attempt = 0): Promise<T | null> {
     await this.acquire();
-    const res = await fetch(url, { headers: { "X-Riot-Token": this.apiKey } });
+    const res = await fetch(url, this.apiKey ? { headers: { "X-Riot-Token": this.apiKey } } : {});
     this.updateLimits(res.headers.get("X-App-Rate-Limit"));
     if (res.status === 404) return null;
     if (res.status === 429 || res.status >= 500) {
@@ -115,8 +119,10 @@ export class RiotApi {
     return (await res.json()) as T;
   }
 
-  private platformUrl = (path: string) => `https://${this.platform}.api.riotgames.com${path}`;
-  private regionUrl = (path: string) => `https://${this.region}.api.riotgames.com${path}`;
+  private url = (host: string, path: string) =>
+    this.relayUrl ? `${this.relayUrl.replace(/\/$/, "")}/${host}${path}` : `https://${host}.api.riotgames.com${path}`;
+  private platformUrl = (path: string) => this.url(this.platform, path);
+  private regionUrl = (path: string) => this.url(this.region, path);
 
   async leaguePlayers(tier: string, division = "I", page = 1): Promise<string[]> {
     if (["MASTER", "GRANDMASTER", "CHALLENGER"].includes(tier)) {

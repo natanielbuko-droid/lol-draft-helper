@@ -10,8 +10,8 @@ import type { GameData } from "./data/gameData";
  *
  * Dane pochodzą z Riot API, więc potrzebny jest klucz. Są dwa tryby:
  *  - "key"   – klucz z pliku .env (RIOT_API_KEY), czytany przy każdym wyszukiwaniu, więc nowy klucz działa bez restartu,
- *  - "proxy" – PLAYER_API_URL wskazuje serwer z kluczem produkcyjnym; aplikacja przekazuje mu te same zapytania.
- * Klucza nigdy nie dołączamy do instalatora (zasady Riot), dlatego bez .env i bez serwera wyszukiwarka jest wyłączona.
+ *  - "proxy" – PLAYER_API_URL wskazuje przekaźnik (relay/), który dokłada klucz po swojej stronie.
+ * Klucza nigdy nie dołączamy do instalatora (zasady Riot), dlatego bez .env i bez przekaźnika wyszukiwarka jest wyłączona.
  */
 
 const QUEUE_NAME: Record<number, string> = {
@@ -78,7 +78,7 @@ export class PlayerService {
   constructor(
     private data: GameData,
     private envFile: string,
-    private proxyUrl: string | null,
+    private relayUrl: string | null,
   ) {}
 
   /** Klucz z .env (czytany za każdym razem) albo ze zmiennej środowiskowej. */
@@ -92,27 +92,20 @@ export class PlayerService {
     return process.env.RIOT_API_KEY ?? null;
   }
 
+  /** Własny klucz (programista) ma pierwszeństwo; bez niego – przekaźnik. */
   get mode(): PlayerSearchMode {
-    if (this.proxyUrl) return "proxy";
-    return this.key() ? "key" : "off";
+    if (this.key()) return "key";
+    return this.relayUrl ? "proxy" : "off";
   }
 
   private api(platform: string): RiotApi {
     if (!PLATFORM_TO_REGION[platform]) throw new PlayerError(`Nieznany serwer: ${platform}.`, 400);
     const key = this.key();
-    if (!key) throw new PlayerError("Wyszukiwarka graczy potrzebuje klucza Riot API – ta funkcja wkrótce będzie dostępna dla wszystkich.", 503);
-    const id = `${platform}:${key}`;
+    if (!key && !this.relayUrl) throw new PlayerError("Wyszukiwarka graczy potrzebuje klucza Riot API – ta funkcja wkrótce będzie dostępna dla wszystkich.", 503);
+    const id = `${platform}:${key ?? `relay:${this.relayUrl}`}`;
     let api = this.apis.get(id);
-    if (!api) this.apis.set(id, (api = new RiotApi(key, platform)));
+    if (!api) this.apis.set(id, (api = key ? new RiotApi(key, platform) : new RiotApi("", platform, this.relayUrl)));
     return api;
-  }
-
-  /** Zapytanie do serwera pośredniczącego (ta sama ścieżka co lokalne API). */
-  private async viaProxy<T>(pathAndQuery: string): Promise<T> {
-    const res = await fetch(`${this.proxyUrl!.replace(/\/$/, "")}${pathAndQuery}`);
-    const body = (await res.json()) as T & { message?: string };
-    if (!res.ok) throw new PlayerError(body.message ?? `Błąd serwera wyszukiwarki (${res.status}).`, res.status);
-    return body;
   }
 
   /** Błędy Riot API -> zrozumiałe komunikaty. */
@@ -122,16 +115,26 @@ export class PlayerService {
     } catch (err) {
       if (err instanceof PlayerError) throw err;
       const msg = (err as Error).message;
-      if (/klucz/i.test(msg)) throw new PlayerError("Klucz Riot API wygasł – wygeneruj nowy na developer.riotgames.com i wpisz go do pliku .env.", 503);
-      if (/429/.test(msg)) throw new PlayerError("Limit zapytań Riot API jest wyczerpany (np. przez działający crawler) – spróbuj za minutę.", 429);
+      const relay = this.mode === "proxy";
+      if (/klucz/i.test(msg)) {
+        throw new PlayerError(
+          relay
+            ? "Serwer wyszukiwarki ma nieaktualny klucz Riot API – spróbuj później."
+            : "Klucz Riot API wygasł – wygeneruj nowy na developer.riotgames.com i wpisz go do pliku .env.",
+          503,
+        );
+      }
+      if (/429/.test(msg)) {
+        throw new PlayerError(
+          relay ? "Wyszukiwarka jest teraz bardzo oblegana – spróbuj za minutę." : "Limit zapytań Riot API jest wyczerpany (np. przez działający crawler) – spróbuj za minutę.",
+          429,
+        );
+      }
       throw new PlayerError(`Riot API nie odpowiada: ${msg}`, 502);
     }
   }
 
   async profile(riotId: string, platform: string): Promise<PlayerProfile> {
-    if (this.mode === "proxy") {
-      return this.viaProxy(`/api/player?riotId=${encodeURIComponent(riotId)}&platform=${encodeURIComponent(platform)}`);
-    }
     const api = this.api(platform);
     const [name, tag] = parseRiotId(riotId, platform);
     return this.call(async () => {
@@ -165,9 +168,6 @@ export class PlayerService {
 
   /** Kolejna strona meczów (przycisk „Wczytaj więcej”). */
   async moreMatches(puuid: string, platform: string, start: number): Promise<{ matches: PlayerMatch[]; hasMore: boolean }> {
-    if (this.mode === "proxy") {
-      return this.viaProxy(`/api/player/matches?puuid=${encodeURIComponent(puuid)}&platform=${encodeURIComponent(platform)}&start=${start}`);
-    }
     const api = this.api(platform);
     const page = await this.call(() => this.loadMatches(api, puuid, start));
     return { matches: page.list, hasMore: page.hasMore };

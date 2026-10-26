@@ -11,6 +11,7 @@ import { analyzeTeam } from "../src/server/engine/teamAnalysis";
 import { clearPath } from "../src/server/engine/jungleEngine";
 import { orderSpells } from "../src/server/clientImport";
 import { parseRiotId, ranksOf, toPlayerMatch } from "../src/server/players";
+import { riotUrl } from "../relay/src/index";
 import { parseSession } from "../src/server/lcu/champSelect";
 
 // --- Dane testowe (syntetyczne – testy nie potrzebują internetu) ---
@@ -227,4 +228,21 @@ test("wyszukiwarka graczy: Riot ID, rangi i mecz z perspektywy gracza", () => {
   assert.deepEqual(m.items.map((i) => i.name), ["Ostrze Nieskończoności"], "puste sloty pominięte");
   assert.equal(m.remake, false);
   assert.equal(toPlayerMatch(dto, "ktoś-inny", data), null);
+});
+
+test("przekaźnik Riot API: przepuszcza tylko zapytania wyszukiwarki", () => {
+  const target = (u: string) => {
+    const r = riotUrl(new URL(`https://relay.test${u}`));
+    return "target" in r ? r.target : r.error.status;
+  };
+  assert.equal(target("/europe/riot/account/v1/accounts/by-riot-id/Nick%20Z/EUNE"), "https://europe.api.riotgames.com/riot/account/v1/accounts/by-riot-id/Nick%20Z/EUNE");
+  assert.equal(target("/eun1/lol/league/v4/entries/by-puuid/abc-DEF_1"), "https://eun1.api.riotgames.com/lol/league/v4/entries/by-puuid/abc-DEF_1");
+  assert.equal(target("/europe/lol/match/v5/matches/by-puuid/abc/ids?start=10&count=500"), "https://europe.api.riotgames.com/lol/match/v5/matches/by-puuid/abc/ids?start=10&count=20", "strona meczów max 20");
+  assert.equal(target("/europe/lol/match/v5/matches/EUN1_4019617342"), "https://europe.api.riotgames.com/lol/match/v5/matches/EUN1_4019617342");
+  // Odrzucane: inne endpointy, zły host, region zamiast serwera, obce parametry.
+  assert.equal(target("/eun1/lol/league/v4/grandmasterleagues/by-queue/RANKED_SOLO_5x5"), 404);
+  assert.equal(target("/evil.com/lol/league/v4/entries/by-puuid/abc"), 400);
+  assert.equal(target("/europe/lol/league/v4/entries/by-puuid/abc"), 400, "liga wymaga serwera, nie regionu");
+  assert.equal(target("/europe/lol/match/v5/matches/by-puuid/abc/ids?api_key=x"), 400);
+  assert.equal(target("/europe/lol/match/v5/matches/EUN1_1/timeline"), 404);
 });

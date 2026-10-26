@@ -22,7 +22,7 @@ export interface AppConfig {
   /** Klucz Riot API – tylko do lokalnego crawlera. NIE umieszczaj go w dystrybuowanej aplikacji. */
   riotApiKey: string | null;
   riotPlatform: string;
-  /** Serwer pośredniczący wyszukiwarki graczy (z kluczem produkcyjnym) – zamiast klucza w .env. */
+  /** Przekaźnik Riot API wyszukiwarki graczy (relay/, klucz po stronie serwera) – używany, gdy nie ma klucza w .env. */
   playerApiUrl: string | null;
   /** Automatyczne odświeżanie statystyk co N godzin (0 = wyłączone). Wymaga riotApiKey. */
   autoCrawlHours: number;

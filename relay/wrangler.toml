@@ -1,0 +1,6 @@
+name = "lol-draft-helper-relay"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+
+# Klucz Riot API NIE jest w tym pliku – ustawia się go jako sekret:
+#   npx wrangler secret put RIOT_API_KEY
