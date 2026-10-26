@@ -7,6 +7,7 @@ import { GameData } from "./data/gameData";
 import { StatsStore } from "./data/statsStore";
 import { computeRecommendations } from "./engine";
 import { archetypes, championDetail, championList, tierLists } from "./engine/browse";
+import { defaultEnvFile, PlayerService } from "./players";
 import { parseSession, type LcuSession } from "./lcu/champSelect";
 import { LcuClient, type DraftSource } from "./lcu/lcuClient";
 import { MockLcu } from "./lcu/mockLcu";
@@ -66,12 +67,14 @@ export async function startServer(hooks: ServerHooks = {}): Promise<RunningServe
   });
 
   let lastSession: LcuSession | null = null;
+  const players = new PlayerService(data, defaultEnvFile(), cfg.playerApiUrl);
   const settings = await loadSettings(cfg.dataDir);
   /** Postać, dla której już zrobiono automatyczny import w tym champ selekcie (żeby nie powtarzać). */
   let autoImportedFor: number | null = null;
   let state: AppState = {
     clientImport: { auto: settings.autoImport, status: null },
     playerPool: null,
+    playerSearch: players.mode,
     connection: "disconnected",
     gameflowPhase: "None",
     patch: data.version,
@@ -98,6 +101,8 @@ export async function startServer(hooks: ServerHooks = {}): Promise<RunningServe
     championList: () => championList(data, stats, tierLists(data, stats)),
     champion: (id, position) => championDetail(id, position, data, stats, tierLists(data, stats)),
     archetypes: () => archetypes(data, stats),
+    playerProfile: (riotId, platform) => players.profile(riotId, platform),
+    playerMatches: (puuid, platform, start) => players.moreMatches(puuid, platform, start),
     importBuild: async () => {
       if (!state.build) throw new Error("Najpierw wybierz postać w champ selekcie.");
       await runImport(false);
@@ -128,7 +133,8 @@ export async function startServer(hooks: ServerHooks = {}): Promise<RunningServe
   }, cfg.openBrowser);
 
   const update = (patch: Partial<AppState>) => {
-    state = { ...state, ...patch, updatedAt: new Date().toISOString() };
+    // Tryb wyszukiwarki zależy od pliku .env – sprawdzany przy każdej zmianie stanu (nowy klucz działa bez restartu).
+    state = { ...state, ...patch, playerSearch: players.mode, updatedAt: new Date().toISOString() };
     api.broadcast(state);
   };
 

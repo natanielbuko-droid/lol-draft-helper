@@ -9,6 +9,7 @@ import { ChampionPage } from "./pages/ChampionPage";
 import { ChampionsPage } from "./pages/ChampionsPage";
 import { CompsPage } from "./pages/CompsPage";
 import { HomePage } from "./pages/HomePage";
+import { PlayerPage, PlayersPage } from "./pages/PlayersPage";
 import { TierListPage } from "./pages/TierListPage";
 import { href, navigate, useRoute, type Route } from "./router";
 import { useAppState } from "./useAppState";
@@ -55,6 +56,7 @@ function Nav({ route, state }: { route: Route; state: AppState }) {
     { label: "Tier lista", to: href.tier(route.page === "tier" ? route.position : "TOP"), active: route.page === "tier" },
     { label: "Postacie", to: href.champions(), active: route.page === "champions" || route.page === "champion" },
     { label: "Składy", to: href.comps(), active: route.page === "comps" },
+    { label: "Gracze", to: href.players(), active: route.page === "players" || route.page === "player" },
   ];
   return (
     <nav className="nav">
@@ -102,6 +104,10 @@ export function App() {
         <ChampionPage id={route.id} position={route.position} version={version} />
       ) : route.page === "comps" ? (
         <CompsPage version={version} />
+      ) : route.page === "players" ? (
+        <PlayersPage mode={state.playerSearch} defaultPlatform={state.statsPlatform ?? "eun1"} />
+      ) : route.page === "player" ? (
+        <PlayerPage platform={route.platform} riotId={route.riotId} mode={state.playerSearch} />
       ) : !draft ? (
         <HomePage state={state} />
       ) : state.gameflowPhase !== "ChampSelect" ? (

@@ -22,6 +22,8 @@ export interface AppConfig {
   /** Klucz Riot API – tylko do lokalnego crawlera. NIE umieszczaj go w dystrybuowanej aplikacji. */
   riotApiKey: string | null;
   riotPlatform: string;
+  /** Serwer pośredniczący wyszukiwarki graczy (z kluczem produkcyjnym) – zamiast klucza w .env. */
+  playerApiUrl: string | null;
   /** Automatyczne odświeżanie statystyk co N godzin (0 = wyłączone). Wymaga riotApiKey. */
   autoCrawlHours: number;
   lolInstallPath: string | null;
@@ -41,6 +43,7 @@ export function loadConfig(argv: string[] = process.argv): AppConfig {
     statsUrl: env.STATS_URL ?? null,
     riotApiKey: env.RIOT_API_KEY ?? null,
     riotPlatform: env.RIOT_PLATFORM ?? "euw1",
+    playerApiUrl: env.PLAYER_API_URL ?? null,
     autoCrawlHours: Number(env.AUTO_CRAWL_HOURS ?? 0),
     lolInstallPath: env.LOL_PATH ?? null,
   };

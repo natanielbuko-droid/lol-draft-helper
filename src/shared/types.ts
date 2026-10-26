@@ -353,6 +353,65 @@ export interface Archetype {
   examples: Partial<Record<Position, ArchetypeExample[]>>;
 }
 
+// ------------------------------------------------ WYSZUKIWARKA GRACZY (profil konta) ---
+
+export interface PlayerRank {
+  queue: "solo" | "flex";
+  tier: string; // np. "GOLD"
+  division: string; // "I"–"IV" (puste dla Master+)
+  lp: number;
+  wins: number;
+  losses: number;
+}
+
+export interface PlayerMatch {
+  id: string;
+  queue: string;
+  win: boolean;
+  /** Gra skończona przed 5. minutą – nie liczy się do statystyk. */
+  remake: boolean;
+  championId: number;
+  championName: string;
+  championImage: string;
+  position: Position | null;
+  kills: number;
+  deaths: number;
+  assists: number;
+  cs: number;
+  durationSec: number;
+  endedAt: number;
+  items: ItemRef[];
+}
+
+/** Postać z wczytanych meczów gracza (liczona w UI, bo rośnie przy „Wczytaj więcej”). */
+export interface PlayerChampionStat {
+  championId: number;
+  name: string;
+  image: string;
+  games: number;
+  wins: number;
+  kills: number;
+  deaths: number;
+  assists: number;
+}
+
+export interface PlayerProfile {
+  puuid: string;
+  gameName: string;
+  tagLine: string;
+  platform: string;
+  level: number;
+  iconUrl: string;
+  ranks: PlayerRank[];
+  mastery: { championId: number; name: string; image: string; points: number; level: number }[];
+  matches: PlayerMatch[];
+  hasMore: boolean;
+  fetchedAt: string;
+}
+
+/** Skąd wyszukiwarka graczy bierze dane: klucz Riot API z .env, serwer pośredniczący albo wyłączona. */
+export type PlayerSearchMode = "key" | "proxy" | "off";
+
 /** Wynik importu buildu do klienta LoL (runy, czary, przedmioty). */
 export interface ImportStatus {
   championId: number;
@@ -381,6 +440,8 @@ export interface AppState {
   clientImport: { auto: boolean; status: ImportStatus | null };
   /** Pula postaci gracza z klienta: ile postaci zna i z ilu ostatnich meczów (null = brak danych). */
   playerPool: { champions: number; recentGames: number } | null;
+  /** Czy działa wyszukiwarka graczy i skąd bierze dane. */
+  playerSearch: PlayerSearchMode;
   /** Idealny / neutralny / koszmarny wybór (pusta lista, gdy za mało kandydatów). */
   scenarios: PickScenario[];
   /** Plan dla gracza na jungli: pierwszy clear i linie do ganku (null, gdy gracz nie gra w dżungli). */

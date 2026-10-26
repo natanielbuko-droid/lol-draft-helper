@@ -58,6 +58,13 @@ const FEATURES: { icon: string; title: string; text: string; when: string; to?: 
     to: href.champions(),
   },
   {
+    icon: "⌕",
+    title: "Wyszukiwarka graczy",
+    text: "Ranga, ostatnie mecze z KDA i przedmiotami, najczęściej grane postacie i maestria – po Riot ID.",
+    when: "dostępne teraz",
+    to: href.players(),
+  },
+  {
     icon: "⬡",
     title: "Składy drużyn",
     text: "Archetypy: engage, poke, ochrona carry, dive i split push – jak grać, co je kontruje i kim je złożyć.",

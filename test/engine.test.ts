@@ -10,6 +10,7 @@ import { buildPlayerPool, comfortScore, recentGames } from "../src/server/lcu/pl
 import { analyzeTeam } from "../src/server/engine/teamAnalysis";
 import { clearPath } from "../src/server/engine/jungleEngine";
 import { orderSpells } from "../src/server/clientImport";
+import { parseRiotId, ranksOf, toPlayerMatch } from "../src/server/players";
 import { parseSession } from "../src/server/lcu/champSelect";
 
 // --- Dane testowe (syntetyczne – testy nie potrzebują internetu) ---
@@ -195,4 +196,35 @@ test("opisy umiejętności: CC i doskoki bez fałszywych trafień", () => {
   assert.equal(HARD_CC.test("Alistar smashes the ground, dealing damage to nearby enemies and tossing them into the air."), true);
   assert.equal(HARD_CC.test("Fizz hops into the air, landing gracefully upon his spear and becoming untargetable."), false);
   assert.equal(DASH.test("Braum propels ice from his shield, slowing the first enemy hit."), false);
+});
+
+test("wyszukiwarka graczy: Riot ID, rangi i mecz z perspektywy gracza", () => {
+  assert.deepEqual(parseRiotId("  Nick Z Spacją#EUNE ", "eun1"), ["Nick Z Spacją", "EUNE"]);
+  assert.deepEqual(parseRiotId("Sam#Nick#TAG", "eun1"), ["Sam#Nick", "TAG"], "tag to część po ostatnim #");
+  assert.deepEqual(parseRiotId("BezTagu", "euw1"), ["BezTagu", "EUW"], "domyślny tag serwera");
+  assert.throws(() => parseRiotId("#TAG", "eun1"));
+
+  const ranks = ranksOf([
+    { queueType: "RANKED_FLEX_SR", tier: "GOLD", rank: "II", leaguePoints: 40, wins: 5, losses: 3 },
+    { queueType: "RANKED_SOLO_5x5", tier: "MASTER", rank: "I", leaguePoints: 300, wins: 60, losses: 50 },
+    { queueType: "CHERRY", tier: "", rank: "", leaguePoints: 0, wins: 1, losses: 1 },
+  ]);
+  assert.deepEqual(ranks.map((r) => `${r.queue}:${r.tier}${r.division}`), ["solo:MASTER", "flex:GOLDII"], "Master+ bez dywizji, Arena pominięta");
+
+  const data = {
+    champions: new Map([[222, { id: 222, name: "Jinx", image: "jinx.png" }]]),
+    itemRefs: new Map([["3031", { id: "3031", name: "Ostrze Nieskończoności", image: "ie.png", gold: 3450 }]]),
+  } as never;
+  const p = (puuid: string, win: boolean) => ({
+    puuid, championId: 222, win, teamPosition: "BOTTOM", kills: 7, deaths: 2, assists: 5, totalMinionsKilled: 180, neutralMinionsKilled: 12,
+    item0: 3031, item1: 0, item2: 0, item3: 0, item4: 0, item5: 0, item6: 0,
+  });
+  const dto = { metadata: { matchId: "EUN1_1" }, info: { gameVersion: "16.21", gameCreation: 0, queueId: 420, gameDuration: 1800, participants: [p("a", false), p("me", true)] } } as never;
+  const m = toPlayerMatch(dto, "me", data)!;
+  assert.equal(m.win, true);
+  assert.equal(m.queue, "Rankingowa solo/duo");
+  assert.equal(m.cs, 192, "CS = stwory + potwory z dżungli");
+  assert.deepEqual(m.items.map((i) => i.name), ["Ostrze Nieskończoności"], "puste sloty pominięte");
+  assert.equal(m.remake, false);
+  assert.equal(toPlayerMatch(dto, "ktoś-inny", data), null);
 });

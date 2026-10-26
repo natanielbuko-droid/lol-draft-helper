@@ -3,7 +3,7 @@
  * Klucz deweloperski: 20 zapytań/1 s i 100 zapytań/2 min – przekroczenie = błąd 429.
  * Limity odczytujemy też z nagłówka X-App-Rate-Limit, więc klucz produkcyjny zadziała szybciej sam.
  */
-const PLATFORM_TO_REGION: Record<string, string> = {
+export const PLATFORM_TO_REGION: Record<string, string> = {
   euw1: "europe", eun1: "europe", tr1: "europe", ru: "europe", me1: "europe",
   na1: "americas", br1: "americas", la1: "americas", la2: "americas",
   kr: "asia", jp1: "asia",
@@ -29,6 +29,13 @@ export interface MatchParticipant {
   roleBoundItem?: number;
   summoner1Id: number;
   summoner2Id: number;
+  // Pola używane przez wyszukiwarkę graczy (profil konta).
+  puuid?: string;
+  kills?: number;
+  deaths?: number;
+  assists?: number;
+  totalMinionsKilled?: number;
+  neutralMinionsKilled?: number;
   perks: {
     statPerks: { offense: number; flex: number; defense: number };
     styles: { description: string; style: number; selections: { perk: number }[] }[];
@@ -37,7 +44,15 @@ export interface MatchParticipant {
 
 export interface MatchDto {
   metadata: { matchId: string };
-  info: { gameVersion: string; gameCreation: number; queueId: number; participants: MatchParticipant[] };
+  info: {
+    gameVersion: string;
+    gameCreation: number;
+    queueId: number;
+    participants: MatchParticipant[];
+    /** Długość gry w sekundach. */
+    gameDuration?: number;
+    gameEndTimestamp?: number;
+  };
 }
 
 export interface TimelineDto {
@@ -131,5 +146,35 @@ export class RiotApi {
 
   timeline(id: string) {
     return this.get<TimelineDto>(this.regionUrl(`/lol/match/v5/matches/${id}/timeline`));
+  }
+
+  // --- wyszukiwarka graczy (profil konta) ---
+
+  /** Konto po Riot ID (nick#tag). Konta są globalne – wystarczy region serwera. */
+  account(gameName: string, tagLine: string) {
+    return this.get<{ puuid: string; gameName: string; tagLine: string }>(
+      this.regionUrl(`/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`),
+    );
+  }
+
+  summoner(puuid: string) {
+    return this.get<{ profileIconId: number; summonerLevel: number }>(this.platformUrl(`/lol/summoner/v4/summoners/by-puuid/${puuid}`));
+  }
+
+  leagueEntries(puuid: string) {
+    return this.get<{ queueType: string; tier: string; rank: string; leaguePoints: number; wins: number; losses: number }[]>(
+      this.platformUrl(`/lol/league/v4/entries/by-puuid/${puuid}`),
+    );
+  }
+
+  topMastery(puuid: string, count = 6) {
+    return this.get<{ championId: number; championLevel: number; championPoints: number }[]>(
+      this.platformUrl(`/lol/champion-mastery/v4/champion-masteries/by-puuid/${puuid}/top?count=${count}`),
+    );
+  }
+
+  /** Ostatnie mecze ze wszystkich trybów (od `start`, najnowsze pierwsze). */
+  recentMatchIds(puuid: string, start = 0, count = 10) {
+    return this.get<string[]>(this.regionUrl(`/lol/match/v5/matches/by-puuid/${puuid}/ids?start=${start}&count=${count}`));
   }
 }

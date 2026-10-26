@@ -5,7 +5,17 @@ import http from "node:http";
 import net from "node:net";
 import path from "node:path";
 import { WebSocketServer, WebSocket } from "ws";
-import { POSITIONS, type AppState, type Archetype, type ChampionDetail, type ChampionListEntry, type Position, type TierEntry } from "../../shared/types";
+import {
+  POSITIONS,
+  type AppState,
+  type Archetype,
+  type ChampionDetail,
+  type ChampionListEntry,
+  type PlayerMatch,
+  type PlayerProfile,
+  type Position,
+  type TierEntry,
+} from "../../shared/types";
 
 export interface RunePageRequest {
   primaryStyleId: number;
@@ -26,6 +36,15 @@ export interface ApiHandlers {
   championList(): ChampionListEntry[];
   champion(id: number, position: Position | null): ChampionDetail | null;
   archetypes(): Archetype[];
+  /** Wyszukiwarka graczy (Riot API). Błędy mają pole `status` z kodem HTTP. */
+  playerProfile(riotId: string, platform: string): Promise<PlayerProfile>;
+  playerMatches(puuid: string, platform: string, start: number): Promise<{ matches: PlayerMatch[]; hasMore: boolean }>;
+}
+
+/** Odpowiedź z błędem wyszukiwarki: komunikat dla gracza i kod HTTP (404 – nie ma gracza, 503 – brak klucza…). */
+function sendError(res: express.Response, err: unknown) {
+  const status = (err as { status?: number }).status ?? 500;
+  res.status(status).json({ message: (err as Error).message });
 }
 
 /** Otwiera adres w domyślnej przeglądarce systemu. */
@@ -86,6 +105,20 @@ export function startApiServer(port: number, resourcesDir: string, handlers: Api
   app.get("/api/tierlist", (_req, res) => res.json(handlers.tierLists()));
   app.get("/api/champions", (_req, res) => res.json(handlers.championList()));
   app.get("/api/archetypes", (_req, res) => res.json(handlers.archetypes()));
+  app.get("/api/player", async (req, res) => {
+    try {
+      res.json(await handlers.playerProfile(String(req.query.riotId ?? ""), String(req.query.platform ?? "eun1")));
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+  app.get("/api/player/matches", async (req, res) => {
+    try {
+      res.json(await handlers.playerMatches(String(req.query.puuid ?? ""), String(req.query.platform ?? "eun1"), Number(req.query.start ?? 0)));
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
   app.get("/api/champion/:id", (req, res) => {
     const pos = String(req.query.position ?? "").toUpperCase() as Position;
     const detail = handlers.champion(Number(req.params.id), POSITIONS.includes(pos) ? pos : null);

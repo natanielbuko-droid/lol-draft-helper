@@ -11,6 +11,9 @@ Samowystarczalny asystent do League of Legends (w stylu Blitz / Mobalytics / Por
 - **Twoja pula postaci** – maestria i ostatnie mecze z klienta podbijają postacie, którymi grasz (znacznik „Twoja”,
   filtr „Tylko moja pula”),
 - **Plan dżungli** – pierwszy clear i linie warte ganku na podstawie draftu,
+- **Wyszukiwarka graczy** – profil konta po Riot ID: ranga, historia meczów (KDA, CS, przedmioty), najczęściej grane
+  postacie i maestria. Wymaga klucza Riot API (na razie własnego w `.env`; wniosek o klucz produkcyjny:
+  [docs/riot-production-key.md](docs/riot-production-key.md)),
 - **Przeglądanie bez gry** – tier lista na każdą pozycję, strona każdej postaci (build, runy, łatwe i trudne matchupy,
   synergie, mocne i słabe strony) oraz archetypy składów (engage, poke, ochrona carry, dive, split push),
 - **Autonomia** – dane o grze pobierane automatycznie przy każdym nowym patchu; statystyki zbierane własnym crawlerem.
@@ -355,7 +358,8 @@ w `seed/stats.json.gz` (do wysłania na GitHuba).
 | `LOCALE` | `pl_PL` | język nazw postaci/przedmiotów |
 | `PATCH_CHECK_MINUTES` | 30 | jak często sprawdzać nowy patch |
 | `STATS_URL` | – | zdalny plik statystyk (format `StatsFile` z `statsStore.ts`) |
-| `RIOT_API_KEY`, `RIOT_PLATFORM` | –, `euw1` | crawler |
+| `RIOT_API_KEY`, `RIOT_PLATFORM` | –, `euw1` | crawler; klucz włącza też wyszukiwarkę graczy (czytany z `.env` przy każdym wyszukiwaniu) |
+| `PLAYER_API_URL` | – | serwer pośredniczący wyszukiwarki graczy (z kluczem produkcyjnym) zamiast własnego klucza |
 | `AUTO_CRAWL_HOURS` | 0 | automatyczny crawl w tle |
 | `LOL_PATH` | – | folder gry, jeśli nie jest w `C:\Riot Games\League of Legends` |
 | `MOCK_LCU=1` | – | to samo co `--mock` |
