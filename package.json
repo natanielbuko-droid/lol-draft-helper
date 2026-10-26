@@ -1,9 +1,11 @@
 {
   "name": "lol-draft-helper",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Samowystarczalny asystent draftu i buildów do League of Legends (LCU API + Data Dragon + statystyki z Riot API).",
+  "author": "natanielbuko-droid",
   "type": "module",
+  "main": "out/desktop/main.mjs",
   "scripts": {
     "dev": "concurrently -n server,ui -c blue,magenta \"tsx watch src/server/index.ts\" \"vite\"",
     "dev:mock": "concurrently -n server,ui -c blue,magenta \"tsx watch src/server/index.ts --mock\" \"vite\"",
@@ -12,9 +14,14 @@
     "crawl": "tsx src/crawler/crawl.ts",
     "export-seed": "tsx scripts/export-seed.ts",
     "test": "node --import tsx --test test/engine.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:desktop": "vite build && esbuild src/desktop/main.ts --bundle --platform=node --format=esm --packages=external --outfile=out/desktop/main.mjs",
+    "desktop": "npm run build:desktop && electron .",
+    "desktop:mock": "npm run build:desktop && electron . --mock",
+    "dist": "npm run build:desktop && electron-builder --win --publish never"
   },
   "dependencies": {
+    "electron-updater": "^6.8.11",
     "express": "^4.21.2",
     "ws": "^8.18.0"
   },
@@ -26,6 +33,9 @@
     "@types/ws": "^8.5.13",
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.0",
+    "electron": "^45.0.0",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.28.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tsx": "^4.19.2",
@@ -34,5 +44,59 @@
   },
   "engines": {
     "node": ">=20.12"
+  },
+  "build": {
+    "appId": "io.github.natanielbuko.loldrafthelper",
+    "productName": "LoL Draft Helper",
+    "directories": {
+      "buildResources": "build-resources",
+      "output": "release"
+    },
+    "files": [
+      "out/desktop/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "dist",
+        "to": "dist"
+      },
+      {
+        "from": "seed",
+        "to": "seed"
+      },
+      {
+        "from": "build-resources/icon.ico",
+        "to": "icon.ico"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build-resources/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "runAfterFinish": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "LoL Draft Helper",
+      "artifactName": "LoL-Draft-Helper-Setup-${version}.${ext}",
+      "installerLanguages": [
+        "pl_PL"
+      ],
+      "language": "1045"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "natanielbuko-droid",
+        "repo": "lol-draft-helper"
+      }
+    ]
+  },
+  "allowScripts": {
+    "electron@45.0.0": true,
+    "esbuild@0.28.2": true,
+    "esbuild@0.21.5": true
   }
 }

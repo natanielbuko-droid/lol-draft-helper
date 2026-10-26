@@ -21,6 +21,8 @@ if errorlevel 1 (
 
 if not exist node_modules (
   echo Pierwsze uruchomienie - instaluje zaleznosci, to potrwa okolo minuty...
+  rem Electron (okno desktopowe) nie jest potrzebny w wersji z przegladarka - nie pobieramy jego ~100 MB.
+  set ELECTRON_SKIP_BINARY_DOWNLOAD=1
   call npm.cmd install --no-fund --no-audit
   if errorlevel 1 (
     echo [!] Instalacja nie powiodla sie - sprawdz polaczenie z internetem.

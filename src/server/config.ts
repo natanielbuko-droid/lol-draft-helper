@@ -11,6 +11,8 @@ export interface AppConfig {
   /** Otwórz interfejs w przeglądarce po starcie (flaga --open). */
   openBrowser: boolean;
   dataDir: string;
+  /** Folder z plikami aplikacji: dist/ (zbudowany interfejs) i seed/ (startowe statystyki). */
+  resourcesDir: string;
   /** Język nazw w UI (Data Dragon obsługuje m.in. pl_PL). Analiza tekstu zawsze odbywa się na en_US. */
   displayLocale: string;
   /** Co ile minut sprawdzać, czy wyszedł nowy patch. */
@@ -33,6 +35,7 @@ export function loadConfig(argv: string[] = process.argv): AppConfig {
     mock: argv.includes("--mock") || env.MOCK_LCU === "1",
     openBrowser: argv.includes("--open"),
     dataDir: path.resolve(env.DATA_DIR ?? "data"),
+    resourcesDir: path.resolve(env.RESOURCES_DIR ?? "."),
     displayLocale: env.LOCALE ?? "pl_PL",
     patchCheckMinutes: Number(env.PATCH_CHECK_MINUTES ?? 30),
     statsUrl: env.STATS_URL ?? null,

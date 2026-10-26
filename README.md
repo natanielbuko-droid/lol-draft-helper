@@ -6,6 +6,11 @@ Samowystarczalny asystent do League of Legends (w stylu Blitz / Mobalytics / Por
   z porównaniem każdej postaci do pozostałych oraz **3 scenariuszami**: postać pasująca idealnie, neutralnie i koszmarnie,
 - **Dynamiczne buildy** – core + przedmioty sytuacyjne dopasowane do wrogiego składu, runy, czary, kolejność umiejętności,
   a obok **inne warianty grane przez graczy** (ścieżki przedmiotów, strony run, czary) z winrate i liczbą gier,
+- **Automatyczny import** – po zablokowaniu postaci aplikacja sama ustawia w kliencie runy, czary przywoływacza
+  i zestaw przedmiotów w sklepie (tylko własne strony „DraftHelper” – Twoich stron nie rusza),
+- **Twoja pula postaci** – maestria i ostatnie mecze z klienta podbijają postacie, którymi grasz (znacznik „Twoja”,
+  filtr „Tylko moja pula”),
+- **Plan dżungli** – pierwszy clear i linie warte ganku na podstawie draftu,
 - **Autonomia** – dane o grze pobierane automatycznie przy każdym nowym patchu; statystyki zbierane własnym crawlerem.
 
 ![LoL Draft Helper – champ select z rekomendacjami](docs/screenshot.jpg)
@@ -16,6 +21,24 @@ Samowystarczalny asystent do League of Legends (w stylu Blitz / Mobalytics / Por
 ---
 
 ## 1. Jak przetestować (Windows)
+
+### Sposób A – instalator (polecany)
+
+1. Wejdź w **[Releases](../../releases/latest)** i pobierz plik **`LoL-Draft-Helper-Setup-….exe`**.
+2. Uruchom go. Jeśli pojawi się niebieskie okno „System Windows ochronił ten komputer”, kliknij
+   **Więcej informacji → Uruchom mimo to** (aplikacja nie ma płatnego certyfikatu podpisu).
+3. Gotowe – aplikacja instaluje się sama (bez uprawnień administratora) i otwiera w osobnym oknie.
+
+Co warto wiedzieć:
+
+- **Node.js nie jest potrzebny** – wszystko jest w instalatorze.
+- Zamknięcie okna **chowa aplikację do zasobnika** (ikona heksagonu obok zegara). Stamtąd ją otworzysz albo zakończysz.
+- Aplikacja **uruchamia się razem z Windows** w tle i **sama pokazuje okno w champ selekcie**. Autostart wyłączysz
+  w menu ikony w zasobniku („Uruchamiaj razem z Windows”).
+- **Aktualizacje instalują się same** – nowa wersja pobiera się w tle, a aplikacja zapyta o ponowne uruchomienie.
+- Odinstalowanie: *Ustawienia → Aplikacje → LoL Draft Helper → Odinstaluj*.
+
+### Sposób B – z kodu źródłowego (ZIP)
 
 1. Zainstaluj **[Node.js](https://nodejs.org) w wersji LTS** (20.12 lub nowszej) – zwykły instalator, wszystko „Dalej”.
 2. Pobierz aplikację: zielony przycisk **Code → Download ZIP** na tej stronie, a potem **rozpakuj archiwum**
@@ -33,7 +56,8 @@ Statystyki (winrate, kontry, buildy) są dołączone w `seed/stats.json.gz` i po
 graczy z rang **Master i Grandmaster** – liczba meczów jest widoczna w nagłówku aplikacji. Traktuj je jako wskazówkę,
 a nie wyrocznię (aplikacja pokazuje przy każdej ocenie, ile danych za nią stoi).
 
-**Zgłaszając błąd**, opisz co robiłeś i wklej ostatnie linie z okna konsoli.
+**Zgłaszając błąd**, opisz, co się działo, i dołącz logi: w wersji z instalatora kliknij prawym ikonę w zasobniku →
+**Folder z logami** i załącz plik `app.log`; w wersji z ZIP-a wklej ostatnie linie z okna konsoli.
 
 ### Częste problemy
 
@@ -72,6 +96,13 @@ Z prawdziwą grą: `npm run dev`.
 | `npm test` | testy silnika (bez internetu) |
 | `npm run typecheck` | sprawdzenie typów TypeScript |
 | `npm run crawl` | zbiera statystyki z Riot API (patrz rozdział 6) |
+| `npm run desktop` / `npm run desktop:mock` | aplikacja desktopowa (Electron) bez instalowania |
+| `npm run dist` | buduje instalator `release/LoL-Draft-Helper-Setup-<wersja>.exe` + `latest.yml` dla auto-aktualizacji |
+
+**Wydanie nowej wersji:** podnieś `version` w `package.json`, uruchom `npm run dist`, a potem utwórz release na GitHubie
+z tagiem `v<wersja>` i dołącz trzy pliki z `release/`: instalator `.exe`, `.exe.blockmap` i `latest.yml`
+(np. `gh release create v0.2.0 release/*.exe release/*.blockmap release/latest.yml`). Zainstalowane aplikacje
+znajdą ją same w ciągu kilku godzin.
 
 ---
 
@@ -109,8 +140,11 @@ Z prawdziwą grą: `npm run dev`.
 ```
 src/
 ├─ shared/types.ts            Typy wspólne dla serwera i UI
+├─ desktop/main.ts            Aplikacja desktopowa (Electron): okno, zasobnik, autostart, auto-aktualizacje
 ├─ server/
-│  ├─ index.ts                Start aplikacji – łączy wszystkie moduły
+│  ├─ app.ts                  startServer() – łączy wszystkie moduły (używa go terminal i Electron)
+│  ├─ index.ts                Start z terminala (npm start / start.bat)
+│  ├─ clientImport.ts         Import run, czarów i zestawu przedmiotów do klienta
 │  ├─ config.ts               Konfiguracja (zmienne środowiskowe)
 │  ├─ data/
 │  │  ├─ ddragon.ts           Pobieranie Data Dragon (wersje, postacie, przedmioty, runy, czary)
@@ -337,13 +371,12 @@ w `seed/stats.json.gz` (do wysłania na GitHuba).
 
 ## 8. Dalszy rozwój
 
-- **Okno desktopowe:** Electron lub Tauri ładujące `http://localhost:4777` (po `npm start`), z ikoną w trayu
-  i nakładką „zawsze na wierzchu”.
+- **Nakładka w grze** „zawsze na wierzchu” z buildem i timerami.
 - **Build w trakcie gry:** Live Client Data API (`https://127.0.0.1:2999/liveclientdata/allgamedata`)
   podaje przedmioty wrogów w czasie rzeczywistym – wystarczy podać je do `analyzeTeam`/reguł.
 - **Synergie i kontry na poziomie archetypów** (np. „enchanter + hyper-carry”), gdy brak danych dla konkretnej pary.
-- **Tier lista** i preferowana pula postaci gracza (`/lol-champions/v1/inventories/.../champions-minimal`, maestria).
-- **Import zestawu przedmiotów** do sklepu w grze (`PUT /lol-item-sets/v1/item-sets/{summonerId}/sets`).
+- **Tier lista** postaci na każdą pozycję.
+- **Podpis kodu** instalatora (usuwa ostrzeżenie SmartScreen).
 
 ---
 

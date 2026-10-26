@@ -72,7 +72,8 @@ export async function choosePort(preferred: number, attempts = 10): Promise<{ po
  * Nasłuchuje tylko na 127.0.0.1 – nie jest dostępny z sieci.
  * `openBrowser` – po starcie otwiera interfejs w przeglądarce (flaga --open).
  */
-export function startApiServer(port: number, handlers: ApiHandlers, openBrowser = false) {
+/** `resourcesDir` – folder z plikami aplikacji (dist/ z interfejsem, seed/); w instalatorze to folder resources. */
+export function startApiServer(port: number, resourcesDir: string, handlers: ApiHandlers, openBrowser = false) {
   const app = express();
   app.use(express.json());
 
@@ -111,7 +112,7 @@ export function startApiServer(port: number, handlers: ApiHandlers, openBrowser 
     res.json({ ok: true });
   });
 
-  const dist = path.resolve("dist");
+  const dist = path.resolve(resourcesDir, "dist");
   if (fs.existsSync(dist)) {
     app.use(express.static(dist));
     app.get("*", (_req, res) => res.sendFile(path.join(dist, "index.html")));
@@ -134,13 +135,18 @@ export function startApiServer(port: number, handlers: ApiHandlers, openBrowser 
   server.on("error", onError);
   wss.on("error", onError);
 
-  server.listen(port, "127.0.0.1", () => {
-    const url = `http://localhost:${port}`;
-    console.log(`[api] Serwer działa: ${url}`);
-    if (openBrowser && fs.existsSync(dist)) openUrl(url);
-  });
+  const ready = new Promise<void>((resolve) =>
+    server.listen(port, "127.0.0.1", () => {
+      const url = `http://localhost:${port}`;
+      console.log(`[api] Serwer działa: ${url}`);
+      if (openBrowser && fs.existsSync(dist)) openUrl(url);
+      resolve();
+    }),
+  );
 
   return {
+    /** Spełnia się, gdy serwer nasłuchuje na porcie. */
+    ready,
     broadcast(state: AppState) {
       const msg = JSON.stringify(state);
       for (const client of wss.clients) if (client.readyState === WebSocket.OPEN) client.send(msg);
