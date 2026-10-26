@@ -1,7 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-// UI (React) działa na :5173 w trybie dev i przekierowuje /api oraz /ws do serwera na :4777.
+// UI (React) działa na :5173 w trybie dev i przekierowuje /api oraz /ws do serwera na :4777 (albo API_PORT).
+const api = `localhost:${process.env.API_PORT ?? 4777}`;
+
 export default defineConfig({
   plugins: [react()],
   root: "src/ui",
@@ -9,8 +11,8 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/api": "http://localhost:4777",
-      "/ws": { target: "ws://localhost:4777", ws: true },
+      "/api": `http://${api}`,
+      "/ws": { target: `ws://${api}`, ws: true },
     },
   },
 });

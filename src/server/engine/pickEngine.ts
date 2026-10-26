@@ -11,7 +11,7 @@ import type {
 } from "../../shared/types";
 import { POSITIONS } from "../../shared/types";
 import type { GameData } from "../data/gameData";
-import { smoothedWinrate, type StatsStore } from "../data/statsStore";
+import { smoothedWinrate, type StatsStore, type WL } from "../data/statsStore";
 import { comfortScore } from "../lcu/playerPool";
 import { analyzeTeam, heuristicPositionFit, inferPositions } from "./teamAnalysis";
 import { abilityText, DAMAGE_NAME, inMatches, matches, names, pct, pct0, POSITION_NAME } from "./vocab";
@@ -185,6 +185,20 @@ export function personalPart(e: PoolEntry | undefined): { comfort: number; point
 
 const thousands = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)} tys.` : `${n}`);
 
+/**
+ * Siła postaci na patchu (-1..1): wygładzony winrate + popularność na tej pozycji.
+ * Wspólna dla rankingu picków i tier listy. Sam winrate z małej próbki (np. 34 gry po 70%) to głównie szczęście;
+ * popularność mówi, czy postać faktycznie jest grana na tej pozycji przez dobrych graczy.
+ */
+export function metaScore(wl: WL | undefined, positionGames: number, avgPickRate: number) {
+  const baseWr = smoothedWinrate(wl, 150);
+  const games = wl?.games ?? 0;
+  const pickRate = positionGames ? games / positionGames : 0;
+  const wrScore = clamp((baseWr - 0.5) / 0.04);
+  const popScore = pickRate > 0 ? clamp(Math.log2(pickRate / avgPickRate) / 2) : -1;
+  return { meta: 0.6 * wrScore + 0.4 * popScore, baseWr, pickRate, popScore, games };
+}
+
 /** Pełna ocena jednej postaci: Meta + Counter + Synergy + Composition. */
 export function scoreChampion(c: ChampionProfile, ctx: PickContext, stats: StatsStore): { score: ScoreBreakdown; reasons: Reason[] } {
   const W = stats.hasData ? WEIGHTS_WITH_STATS : WEIGHTS_NO_STATS;
@@ -193,19 +207,14 @@ export function scoreChampion(c: ChampionProfile, ctx: PickContext, stats: Stats
   const metaReasons: Reason[] = [];
 
   // --- META: siła na patchu = wygładzony winrate + popularność na tej pozycji ---
-  // Sam winrate z małej próbki (np. 34 gry po 70%) to głównie szczęście; popularność mówi,
-  // czy postać faktycznie jest grana na tej pozycji przez dobrych graczy.
   const base = stats.championWL(c.id, ctx.position);
-  const baseWr = smoothedWinrate(base, 150);
-  const games = base?.games ?? 0;
+  const m = metaScore(base, ctx.positionGames, ctx.avgPickRate);
+  const { baseWr, games, pickRate } = m;
   const rawBase = games ? base!.wins / games : baseWr;
-  const pickRate = ctx.positionGames ? games / ctx.positionGames : 0;
   let meta: number;
   if (stats.hasData) {
-    const wrScore = clamp((baseWr - 0.5) / 0.04);
-    const popScore = pickRate > 0 ? clamp(Math.log2(pickRate / ctx.avgPickRate) / 2) : -1;
-    meta = 0.6 * wrScore + 0.4 * popScore;
-    if (popScore <= -0.6 && games > 0) {
+    meta = m.meta;
+    if (m.popScore <= -0.6 && games > 0) {
       metaReasons.push(info(`Rzadko grana ${POSITION_NAME[ctx.position]} (${pct(pickRate)} gier, ${matches(games)}) – ocena mniej pewna.`));
     }
   } else {

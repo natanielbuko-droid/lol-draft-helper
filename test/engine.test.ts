@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ChampionProfile, PickRecommendation } from "../src/shared/types";
+import { DASH, HARD_CC } from "../src/server/data/championProfile";
 import { parseItemStats, type CatalogItem } from "../src/server/data/itemCatalog";
 import { smoothedWinrate } from "../src/server/data/statsStore";
 import { situationalItems, skillLevels } from "../src/server/engine/buildEngine";
@@ -183,4 +184,15 @@ test("pula gracza: maestria + ostatnie mecze, premia i powód z liczbami", () =>
   assert.ok(part.points > 6 && part.points <= 10);
   assert.equal(part.reasons[0].text, "Twoja postać: 182 tys. pkt maestrii (poziom 12), 50% wygranych w ostatnich 2 grach.");
   assert.equal(personalPart(undefined).points, 0);
+});
+
+test("opisy umiejętności: CC i doskoki bez fałszywych trafień", () => {
+  const tristanaW = "Tristana fires at the ground to propel her to a distant location, dealing damage and slowing surrounding units.";
+  const tristanaR = "Tristana loads a massive cannonball into her weapon and fires it at an enemy unit. This deals Magic Damage and knocks the target back.";
+  assert.equal(HARD_CC.test(tristanaW), false, "strzał w ziemię to nie CC");
+  assert.equal(DASH.test(tristanaW), true, "Rakietowy Skok to doskok");
+  assert.equal(HARD_CC.test(tristanaR), true, "odrzut z wyrazami w środku");
+  assert.equal(HARD_CC.test("Alistar smashes the ground, dealing damage to nearby enemies and tossing them into the air."), true);
+  assert.equal(HARD_CC.test("Fizz hops into the air, landing gracefully upon his spear and becoming untargetable."), false);
+  assert.equal(DASH.test("Braum propels ice from his shield, slowing the first enemy hit."), false);
 });

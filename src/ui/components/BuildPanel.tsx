@@ -59,7 +59,8 @@ function Section({ title, extra, children }: { title: string; extra?: ReactNode;
 
 const SKILL_HINT = "Na każdym poziomie postaci rozwijasz jedną umiejętność. R (ult) – na poziomach 6, 11 i 16.";
 
-export function BuildPanel({ build, champion }: { build: BuildRecommendation; champion?: { name: string; image: string } }) {
+/** `readOnly` – build oglądany poza champ selectem (strona postaci): bez zapisywania run w kliencie. */
+export function BuildPanel({ build, champion, readOnly = false }: { build: BuildRecommendation; champion?: { name: string; image: string }; readOnly?: boolean }) {
   const [msg, setMsg] = useState<string | null>(null);
   const { runes, skillOrder, alternatives: alt, mainStats } = build;
 
@@ -121,7 +122,11 @@ export function BuildPanel({ build, champion }: { build: BuildRecommendation; ch
 
       <Section title="Sytuacyjne – zamień, gdy pasuje do wroga">
         {build.situational.length === 0 ? (
-          <p className="muted">Brak szczególnych zagrożeń – trzymaj się powyższego buildu.</p>
+          <p className="muted">
+            {readOnly
+              ? "W champ selekcie aplikacja dobierze tu przedmioty pod skład wroga (anty-heal, pancerz, odporność na magię…)."
+              : "Brak szczególnych zagrożeń – trzymaj się powyższego buildu."}
+          </p>
         ) : (
           <ul className="situational">
             {build.situational.map((i) => (
@@ -171,10 +176,12 @@ export function BuildPanel({ build, champion }: { build: BuildRecommendation; ch
               </div>
             </div>
           </div>
-          <div className="actions">
-            <button onClick={() => applyRunes()}>Zapisz runy w kliencie LoL</button>
-            {msg && <span className="muted small">{msg}</span>}
-          </div>
+          {!readOnly && (
+            <div className="actions">
+              <button onClick={() => applyRunes()}>Zapisz runy w kliencie LoL</button>
+              {msg && <span className="muted small">{msg}</span>}
+            </div>
+          )}
           {alt.runes.length > 0 && (
             <details className="alts">
               <summary>Inne strony run ({alt.runes.length})</summary>
@@ -196,9 +203,11 @@ export function BuildPanel({ build, champion }: { build: BuildRecommendation; ch
                       </div>
                     </div>
                     <Stat s={r} />
-                    <button className="secondary small" onClick={() => applyRunes(r.page)}>
-                      Zapisz
-                    </button>
+                    {!readOnly && (
+                      <button className="secondary small" onClick={() => applyRunes(r.page)}>
+                        Zapisz
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>

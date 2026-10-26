@@ -6,6 +6,7 @@ import { loadConfig } from "./config";
 import { GameData } from "./data/gameData";
 import { StatsStore } from "./data/statsStore";
 import { computeRecommendations } from "./engine";
+import { archetypes, championDetail, championList, tierLists } from "./engine/browse";
 import { parseSession, type LcuSession } from "./lcu/champSelect";
 import { LcuClient, type DraftSource } from "./lcu/lcuClient";
 import { MockLcu } from "./lcu/mockLcu";
@@ -93,6 +94,10 @@ export async function startServer(hooks: ServerHooks = {}): Promise<RunningServe
       update(statsInfo()); // nagłówek odświeża się także poza champ selectem
       await recompute();
     },
+    tierLists: () => tierLists(data, stats),
+    championList: () => championList(data, stats, tierLists(data, stats)),
+    champion: (id, position) => championDetail(id, position, data, stats, tierLists(data, stats)),
+    archetypes: () => archetypes(data, stats),
     importBuild: async () => {
       if (!state.build) throw new Error("Najpierw wybierz postać w champ selekcie.");
       await runImport(false);

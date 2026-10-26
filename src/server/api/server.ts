@@ -5,7 +5,7 @@ import http from "node:http";
 import net from "node:net";
 import path from "node:path";
 import { WebSocketServer, WebSocket } from "ws";
-import type { AppState } from "../../shared/types";
+import { POSITIONS, type AppState, type Archetype, type ChampionDetail, type ChampionListEntry, type Position, type TierEntry } from "../../shared/types";
 
 export interface RunePageRequest {
   primaryStyleId: number;
@@ -21,6 +21,11 @@ export interface ApiHandlers {
   /** Importuje bieżący build (runy, czary, przedmioty) do klienta LoL. */
   importBuild(): Promise<void>;
   setAutoImport(enabled: boolean): Promise<void>;
+  /** Przeglądanie poza champ selectem. */
+  tierLists(): Record<Position, TierEntry[]>;
+  championList(): ChampionListEntry[];
+  champion(id: number, position: Position | null): ChampionDetail | null;
+  archetypes(): Archetype[];
 }
 
 /** Otwiera adres w domyślnej przeglądarce systemu. */
@@ -78,6 +83,15 @@ export function startApiServer(port: number, resourcesDir: string, handlers: Api
   app.use(express.json());
 
   app.get("/api/state", (_req, res) => res.json(handlers.getState()));
+  app.get("/api/tierlist", (_req, res) => res.json(handlers.tierLists()));
+  app.get("/api/champions", (_req, res) => res.json(handlers.championList()));
+  app.get("/api/archetypes", (_req, res) => res.json(handlers.archetypes()));
+  app.get("/api/champion/:id", (req, res) => {
+    const pos = String(req.query.position ?? "").toUpperCase() as Position;
+    const detail = handlers.champion(Number(req.params.id), POSITIONS.includes(pos) ? pos : null);
+    if (detail) res.json(detail);
+    else res.status(404).json({ message: "Nie ma takiej postaci." });
+  });
 
   app.post("/api/runes/apply", async (req, res) => {
     try {

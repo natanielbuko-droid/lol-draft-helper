@@ -11,6 +11,8 @@ Samowystarczalny asystent do League of Legends (w stylu Blitz / Mobalytics / Por
 - **Twoja pula postaci** – maestria i ostatnie mecze z klienta podbijają postacie, którymi grasz (znacznik „Twoja”,
   filtr „Tylko moja pula”),
 - **Plan dżungli** – pierwszy clear i linie warte ganku na podstawie draftu,
+- **Przeglądanie bez gry** – tier lista na każdą pozycję, strona każdej postaci (build, runy, łatwe i trudne matchupy,
+  synergie, mocne i słabe strony) oraz archetypy składów (engage, poke, ochrona carry, dive, split push),
 - **Autonomia** – dane o grze pobierane automatycznie przy każdym nowym patchu; statystyki zbierane własnym crawlerem.
 
 ![LoL Draft Helper – champ select z rekomendacjami](docs/screenshot.jpg)
@@ -164,6 +166,8 @@ src/
 │  │  ├─ archetype.ts         Typ postaci → wartość statystyk na przedmiotach
 │  │  ├─ rules.ts             Reguły przedmiotów sytuacyjnych (tabela progów)
 │  │  ├─ buildEngine.ts       Core, buty, sytuacyjne, czary, runy, umiejętności
+│  │  ├─ browse.ts            Tier lista, strona postaci, archetypy (przeglądanie poza champ selectem)
+│  │  ├─ archetypes.ts        Opisy archetypów składów i ich postacie
 │  │  └─ index.ts             Jeden punkt wejścia: DraftState → rekomendacje
 │  └─ api/server.ts           Express (REST) + WebSocket dla UI
 ├─ crawler/

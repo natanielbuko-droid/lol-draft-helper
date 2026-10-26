@@ -266,6 +266,93 @@ export interface TeamAnalysis {
   notes: string[];
 }
 
+// ------------------------------------------------ PRZEGLĄDANIE (poza champ selectem) ---
+
+/** Tier postaci na pozycji: S = najmocniejsze ~10%, D = najsłabsze. */
+export type Tier = "S" | "A" | "B" | "C" | "D";
+
+export interface TierEntry {
+  championId: number;
+  name: string;
+  image: string;
+  tier: Tier;
+  rank: number;
+  winrate: number;
+  pickRate: number;
+  games: number;
+  roles: string[];
+}
+
+export interface ChampionListEntry {
+  championId: number;
+  name: string;
+  image: string;
+  roles: string[];
+  /** Pozycje, na których postać jest grana (od najczęstszej). */
+  positions: Position[];
+  /** Tier na głównej pozycji (null = za mało gier). */
+  tier: Tier | null;
+}
+
+export interface MatchupEntry {
+  championId: number;
+  name: string;
+  image: string;
+  games: number;
+  /** Winrate w tych meczach (0..1). */
+  winrate: number;
+  /** Różnica względem zwykłego winrate postaci (wygładzona; + = lepiej niż zwykle). */
+  delta: number;
+}
+
+export interface ChampionDetail {
+  championId: number;
+  name: string;
+  image: string;
+  roles: string[];
+  damageType: ChampionProfile["damageType"];
+  attackType: ChampionProfile["attackType"];
+  ratings: { damage: number; durability: number; crowdControl: number; mobility: number; utility: number };
+  position: Position;
+  positions: { position: Position; games: number; share: number; winrate: number }[];
+  tier: Tier | null;
+  rank: number | null;
+  /** Ile postaci jest w tier liście tej pozycji. */
+  ofCount: number;
+  winrate: number | null;
+  pickRate: number | null;
+  games: number;
+  strengths: string[];
+  weaknesses: string[];
+  archetypes: { id: string; name: string }[];
+  build: BuildRecommendation;
+  goodAgainst: MatchupEntry[];
+  badAgainst: MatchupEntry[];
+  synergies: MatchupEntry[];
+}
+
+export interface ArchetypeExample {
+  championId: number;
+  name: string;
+  image: string;
+  winrate: number | null;
+  games: number;
+}
+
+/** Archetyp składu drużyny (engage, poke, ochrona carry…) z przykładowymi postaciami na każdą pozycję. */
+export interface Archetype {
+  id: string;
+  name: string;
+  tagline: string;
+  description: string;
+  winCondition: string;
+  strengths: string[];
+  weaknesses: string[];
+  strongAgainst: string[];
+  weakAgainst: string[];
+  examples: Partial<Record<Position, ArchetypeExample[]>>;
+}
+
 /** Wynik importu buildu do klienta LoL (runy, czary, przedmioty). */
 export interface ImportStatus {
   championId: number;

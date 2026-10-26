@@ -9,9 +9,11 @@ const stripTags = (s: string) => s.replace(/<[^>]+>/g, " ");
 const ANTI_HEAL = /grievous wounds|reduc\w* (?:\w+ )?heal\w*|wounds/gi;
 const HEALING = /\bheal(?:s|ing|ed)?\b|restores? .{0,25}health|omnivamp|life ?steal|physical vamp|drains?\b/i;
 // Ucieczka: doskok/skok/teleport, ale też nietykalność i niewidzialność (np. Kałuża Krwi Vladimira).
-const DASH = /\bdash(?:es|ing)?\b|\bleaps?\b|\bblinks?\b|\bjumps?\b|\blunges?\b|\bteleports?\b|\buntargetable\b|\binvisib|\bcamouflage/i;
-const HARD_CC =
-  /\bstun|knock(?:s|ed|ing)? (?:up|back|aside)|airborne|suppress|\bcharm|\btaunt|\bfear|\bflee|\bsleep|\broot|\bsnare|immobiliz|\bpulls?\b|\bground(?:s|ed)?\b/i;
+export const DASH =
+  /\bdash(?:es|ing)?\b|\bleaps?\b|\bblinks?\b|\bjumps?\b|\blunges?\b|\bteleports?\b|\buntargetable\b|\binvisib|\bcamouflage|\bpropels? (?:her|him|it)|\bvaults?\b|\bhops?\b/i;
+// "knocks the target back" ma słowa w środku; samo "ground" (np. "fires at the ground") to NIE jest CC – tylko "grounded/grounding".
+export const HARD_CC =
+  /\bstun|knock(?:s|ed|ing)? (?:\w+ ){0,3}?(?:up|back|aside|away)\b|\b(?:toss|pop|launch|fling|throw)\w* (?:\w+ ){0,3}?into the air|\bthrows? enemies|airborne|suppress|\bcarries an enemy|\bcharm|\btaunt|\bfear|\bflee|\bsleep|\broot|\bsnare|immobiliz|\bpulls?\b|\bdragged\b|\bground(?:ed|ing)\b/i;
 
 /**
  * Buduje profil postaci wyłącznie z danych pobranych z sieci.

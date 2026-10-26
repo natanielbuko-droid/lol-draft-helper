@@ -4,7 +4,15 @@ import { Header } from "./components/Header";
 import { ChampSelectTabs } from "./components/ChampSelectTabs";
 import { JunglePlanCard } from "./components/JunglePlanCard";
 import { TeamPanel } from "./components/TeamPanel";
+import { useEffect } from "react";
+import { ChampionPage } from "./pages/ChampionPage";
+import { ChampionsPage } from "./pages/ChampionsPage";
+import { CompsPage } from "./pages/CompsPage";
+import { HomePage } from "./pages/HomePage";
+import { TierListPage } from "./pages/TierListPage";
+import { href, navigate, useRoute, type Route } from "./router";
 import { useAppState } from "./useAppState";
+import type { AppState } from "../shared/types";
 
 /** Fazy klienta LoL po champ selekcie -> komunikat dla gracza. */
 const PHASE_BANNER: Record<string, string> = {
@@ -37,9 +45,37 @@ function Empty({ title, children }: { title: string; children: React.ReactNode }
  *   ScenarioCards   – idealny / neutralny / koszmarny wybór
  *   PickSuggestions – pełny ranking picków z powodami i porównaniem
  *   BuildPanel      – przedmioty, sytuacyjne, runy, czary, umiejętności + alternatywy
+ * Poza champ selectem (Nav): ekran startowy z możliwościami aplikacji, tier lista, postacie, składy.
  */
+
+function Nav({ route, state }: { route: Route; state: AppState }) {
+  const live = !!state.draft;
+  const items: { label: string; to: string; active: boolean; dot?: boolean }[] = [
+    { label: live ? "Champ select" : "Start", to: href.live(), active: route.page === "live", dot: live },
+    { label: "Tier lista", to: href.tier(route.page === "tier" ? route.position : "TOP"), active: route.page === "tier" },
+    { label: "Postacie", to: href.champions(), active: route.page === "champions" || route.page === "champion" },
+    { label: "Składy", to: href.comps(), active: route.page === "comps" },
+  ];
+  return (
+    <nav className="nav">
+      {items.map((i) => (
+        <a key={i.label} href={i.to} className={i.active ? "active" : ""}>
+          {i.dot && <i className="live-dot" title="Trwa champ select" />}
+          {i.label}
+        </a>
+      ))}
+    </nav>
+  );
+}
 export function App() {
   const { state, online } = useAppState();
+  const route = useRoute();
+  const phase = state?.gameflowPhase;
+
+  // Początek champ selectu przenosi z przeglądania prosto do draftu.
+  useEffect(() => {
+    if (phase === "ChampSelect") navigate(href.live());
+  }, [phase]);
 
   if (!online || !state) {
     return (
@@ -53,13 +89,21 @@ export function App() {
 
   const { draft } = state;
   const champion = state.build ? state.champions[state.build.championId] : undefined;
+  const version = `${state.patch}|${state.statsMatches}`;
   return (
     <div className="app">
       <Header state={state} />
-      {!draft ? (
-        <Empty title="Czekam na wybór postaci">
-          Rekomendacje pojawią się same, gdy wejdziesz do champ selectu. Faza klienta: <b>{state.gameflowPhase}</b>.
-        </Empty>
+      <Nav route={route} state={state} />
+      {route.page === "tier" ? (
+        <TierListPage position={route.position} version={version} />
+      ) : route.page === "champions" ? (
+        <ChampionsPage version={version} />
+      ) : route.page === "champion" ? (
+        <ChampionPage id={route.id} position={route.position} version={version} />
+      ) : route.page === "comps" ? (
+        <CompsPage version={version} />
+      ) : !draft ? (
+        <HomePage state={state} />
       ) : state.gameflowPhase !== "ChampSelect" ? (
         // Po champ selekcie (gra, ekran końcowy, lobby) – na pierwszym planie build z ostatniego draftu.
         <>
