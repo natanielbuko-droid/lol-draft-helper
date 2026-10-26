@@ -504,3 +504,21 @@ button.link:hover { text-decoration: underline; filter: none; }
 .verdict-tag.weak { color: var(--neg); background: rgba(232, 64, 87, 0.12); }
 .matchup .vs { color: var(--faint); margin: 0 2px; }
 .jungle-notes { margin-top: 10px; }
+
+/* Import do klienta */
+.import-bar { padding: 10px 14px; }
+.import-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.import-row > div:first-child { flex: 1; min-width: 180px; }
+.import-title { font-family: var(--font-title); font-weight: 700; color: var(--gold-light); font-size: 14px; letter-spacing: 0.04em; }
+.import-row button:disabled { opacity: 0.5; cursor: default; filter: none; }
+.switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; color: var(--muted); user-select: none; }
+.switch input { display: none; }
+.slider { position: relative; width: 34px; height: 18px; border-radius: 999px; background: var(--panel-3); border: 1px solid var(--line-2); transition: background 0.2s; }
+.slider::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--muted); transition: transform 0.2s, background 0.2s; }
+.switch input:checked + .slider { background: rgba(10, 200, 185, 0.25); border-color: var(--teal); }
+.switch input:checked + .slider::after { transform: translateX(16px); background: var(--teal); }
+.import-error { margin: 8px 0 0; color: var(--neg); font-size: 12px; }
+.import-status { display: flex; flex-direction: column; gap: 3px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 12px; }
+.import-status li { display: flex; align-items: center; gap: 6px; }
+.import-status .ok .tone { background: rgba(54, 194, 124, 0.16); color: var(--pos); }
+.import-status .fail .tone { background: rgba(232, 64, 87, 0.16); color: var(--neg); }

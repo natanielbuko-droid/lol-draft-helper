@@ -83,6 +83,14 @@ export class MockLcu extends EventEmitter implements DraftSource {
     console.log("[mock] Strona run zostałaby zapisana w kliencie.");
   }
 
+  async applySummonerSpells(spell1Id: number, spell2Id: number): Promise<void> {
+    console.log(`[mock] Czary zostałyby ustawione: ${spell1Id} + ${spell2Id}.`);
+  }
+
+  async applyItemSet(set: { title: string }): Promise<void> {
+    console.log(`[mock] Zestaw przedmiotów "${set.title}" zostałby zapisany w kliencie.`);
+  }
+
   private id(key: string): number {
     return this.data.championsByKey.get(key)?.id ?? 0;
   }

@@ -116,6 +116,8 @@ export interface SituationalItem extends ItemRef {
 
 export interface SpellRef {
   id: string;
+  /** Numeryczne ID czaru w kliencie (np. 4 = Flash) – potrzebne do ustawienia go w champ selekcie. */
+  key: number;
   name: string;
   image: string;
 }
@@ -250,6 +252,15 @@ export interface TeamAnalysis {
   notes: string[];
 }
 
+/** Wynik importu buildu do klienta LoL (runy, czary, przedmioty). */
+export interface ImportStatus {
+  championId: number;
+  champion: string;
+  auto: boolean;
+  at: string;
+  parts: { part: string; ok: boolean; message: string }[];
+}
+
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "mock";
 
 export interface AppState {
@@ -265,6 +276,8 @@ export interface AppState {
   draft: DraftState | null;
   picks: PickRecommendation[];
   build: BuildRecommendation | null;
+  /** Import buildu do klienta: czy automatycznie po zablokowaniu postaci + wynik ostatniego importu. */
+  clientImport: { auto: boolean; status: ImportStatus | null };
   /** Idealny / neutralny / koszmarny wybór (pusta lista, gdy za mało kandydatów). */
   scenarios: PickScenario[];
   /** Plan dla gracza na jungli: pierwszy clear i linie do ganku (null, gdy gracz nie gra w dżungli). */

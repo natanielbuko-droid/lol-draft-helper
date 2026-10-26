@@ -18,6 +18,9 @@ export interface ApiHandlers {
   /** Zapisuje w kliencie podaną stronę run (albo główną stronę z buildu, gdy brak). */
   applyRunes(page?: RunePageRequest): Promise<string>;
   refreshStats(): Promise<void>;
+  /** Importuje bieżący build (runy, czary, przedmioty) do klienta LoL. */
+  importBuild(): Promise<void>;
+  setAutoImport(enabled: boolean): Promise<void>;
 }
 
 /** Otwiera adres w domyślnej przeglądarce systemu. */
@@ -86,6 +89,21 @@ export function startApiServer(port: number, handlers: ApiHandlers, openBrowser 
     } catch (err) {
       res.status(400).json({ ok: false, message: (err as Error).message });
     }
+  });
+
+  app.post("/api/import", async (_req, res) => {
+    try {
+      await handlers.importBuild();
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(400).json({ ok: false, message: (err as Error).message });
+    }
+  });
+
+  app.post("/api/settings", async (req, res) => {
+    const body = req.body as { autoImport?: unknown };
+    if (typeof body?.autoImport === "boolean") await handlers.setAutoImport(body.autoImport);
+    res.json({ ok: true });
   });
 
   app.post("/api/stats/reload", async (_req, res) => {

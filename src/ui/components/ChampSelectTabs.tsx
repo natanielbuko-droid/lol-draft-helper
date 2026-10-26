@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { AppState } from "../../shared/types";
 import { BuildPanel } from "./BuildPanel";
+import { ImportBar } from "./ImportBar";
 import { JunglePlanCard } from "./JunglePlanCard";
 import { PickSuggestions } from "./PickSuggestions";
 import { ScenarioCards } from "./ScenarioCards";
@@ -43,6 +44,7 @@ export function ChampSelectTabs({ state }: { state: AppState }) {
         </>
       ) : state.build ? (
         <>
+          <ImportBar state={state} />
           {state.jungle && <JunglePlanCard plan={state.jungle} />}
           <BuildPanel build={state.build} champion={champion} />
         </>

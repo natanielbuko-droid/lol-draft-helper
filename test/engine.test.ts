@@ -7,6 +7,7 @@ import { situationalItems, skillLevels } from "../src/server/engine/buildEngine"
 import { compareWithOthers, compositionScore, pickScenarios } from "../src/server/engine/pickEngine";
 import { analyzeTeam } from "../src/server/engine/teamAnalysis";
 import { clearPath } from "../src/server/engine/jungleEngine";
+import { orderSpells } from "../src/server/clientImport";
 import { parseSession } from "../src/server/lcu/champSelect";
 
 // --- Dane testowe (syntetyczne – testy nie potrzebują internetu) ---
@@ -153,4 +154,11 @@ test("plan dżungli: ścieżka kończy się przy linii do ganku i zależy od str
   // Czerwona strona: górna połowa = Red/Krugi/Raptory.
   assert.deepEqual(clearPath("gank", "top", "red"), ["Blue buff", "Red buff", "Krugi"]);
   assert.equal(clearPath("gank", "top", null).length, 3);
+});
+
+test("import: Flash zostaje na klawiszu gracza (D albo F)", () => {
+  assert.deepEqual(orderSpells([4, 7], { spell1Id: 4, spell2Id: 14 }), [4, 7]); // Flash na D
+  assert.deepEqual(orderSpells([4, 7], { spell1Id: 14, spell2Id: 4 }), [7, 4]); // Flash na F
+  assert.deepEqual(orderSpells([7, 4], null), [4, 7]); // brak danych – Flash na D
+  assert.deepEqual(orderSpells([11, 14], { spell1Id: 4, spell2Id: 11 }), [11, 14]); // bez Flasha – bez zmian
 });

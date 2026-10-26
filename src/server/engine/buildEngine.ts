@@ -355,7 +355,7 @@ function buildAlternatives(
     .filter(([key]) => key !== chosen.spellKey)
     .map(([key, wl]) => ({ spells: key.split("+").map((k) => byKey.get(Number(k))), ...winStat(wl)! }))
     .filter((s) => s.spells.length === 2 && s.spells.every((x) => !!x))
-    .map((s) => ({ ...s, spells: s.spells.map((x): SpellRef => ({ id: x!.id, name: x!.name, image: x!.image })) }))
+    .map((s) => ({ ...s, spells: s.spells.map((x): SpellRef => ({ id: x!.id, key: x!.key, name: x!.name, image: x!.image })) }))
     .slice(0, 3);
 
   return { cores, runes, summoners };
@@ -407,7 +407,7 @@ export function recommendBuild(
     boots: boots ? toRef(boots) : null,
     late: late.map(toRef),
     situational,
-    summonerSpells: spells.map((s): SpellRef => ({ id: s.id, name: s.name, image: s.image })),
+    summonerSpells: spells.map((s): SpellRef => ({ id: s.id, key: s.key, name: s.name, image: s.image })),
     summonerReason,
     runes,
     skillOrder,

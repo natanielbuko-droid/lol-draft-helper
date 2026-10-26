@@ -1,6 +1,7 @@
 import path from "node:path";
 import type { AppState } from "../shared/types";
 import { choosePort, openUrl, startApiServer } from "./api/server";
+import { importBuild, loadSettings, saveSettings } from "./clientImport";
 import { loadConfig } from "./config";
 import { GameData } from "./data/gameData";
 import { StatsStore } from "./data/statsStore";
@@ -51,7 +52,11 @@ async function main() {
   });
 
   let lastSession: LcuSession | null = null;
+  const settings = await loadSettings(cfg.dataDir);
+  /** Postać, dla której już zrobiono automatyczny import w tym champ selekcie (żeby nie powtarzać). */
+  let autoImportedFor: number | null = null;
   let state: AppState = {
+    clientImport: { auto: settings.autoImport, status: null },
     connection: "disconnected",
     gameflowPhase: "None",
     patch: data.version,
@@ -73,6 +78,15 @@ async function main() {
       await stats.load();
       update(statsInfo()); // nagłówek odświeża się także poza champ selectem
       await recompute();
+    },
+    importBuild: async () => {
+      if (!state.build) throw new Error("Najpierw wybierz postać w champ selekcie.");
+      await runImport(false);
+    },
+    setAutoImport: async (enabled) => {
+      settings.autoImport = enabled;
+      await saveSettings(cfg.dataDir, settings);
+      update({ clientImport: { ...state.clientImport, auto: enabled } });
     },
     applyRunes: async (requested) => {
       const page = requested ?? state.build?.runes;
@@ -99,6 +113,16 @@ async function main() {
     api.broadcast(state);
   };
 
+  /** Import buildu do klienta; wynik trafia do UI. */
+  async function runImport(auto: boolean) {
+    if (!state.build) return;
+    const me = lastSession?.myTeam.find((p) => p.cellId === lastSession?.localPlayerCellId) ?? null;
+    const status = await importBuild(source, state.build, data, me, auto);
+    const ok = status.parts.filter((p) => p.ok).length;
+    console.log(`[import] ${status.champion}: ${ok}/${status.parts.length} części zaimportowane${auto ? " (automatycznie)" : ""}.`);
+    update({ clientImport: { ...state.clientImport, status } });
+  }
+
   async function recompute() {
     if (!lastSession) {
       update({ draft: null, picks: [], scenarios: [], jungle: null, build: null, allyAnalysis: null, enemyAnalysis: null });
@@ -107,12 +131,22 @@ async function main() {
     const draft = parseSession(lastSession, await source.getPickableChampionIds());
     const rec = computeRecommendations(draft, data, stats);
     update({ draft, ...rec, ...statsInfo() });
+
+    // Automatyczny import, gdy gracz zablokuje postać (raz na postać w danym champ selekcie).
+    const meSlot = draft.myTeam.find((s) => s.isLocalPlayer);
+    if (settings.autoImport && meSlot?.locked && rec.build && autoImportedFor !== rec.build.championId) {
+      autoImportedFor = rec.build.championId;
+      void runImport(true);
+    }
   }
 
   source.on("status", (connection) => update({ connection }));
   // Po champ selekcie (ładowanie, gra, ekran końcowy) zostawiamy ostatni draft i build na ekranie –
   // gracz zagląda do buildu właśnie w trakcie gry. Zastąpi je dopiero następny champ select.
-  source.on("phase", (gameflowPhase: string) => update({ gameflowPhase }));
+  source.on("phase", (gameflowPhase: string) => {
+    if (gameflowPhase === "ChampSelect") autoImportedFor = null; // nowy champ select – można importować ponownie
+    update({ gameflowPhase });
+  });
   source.on("session", (session: LcuSession | null) => {
     if (!session) return; // koniec champ selectu – zachowujemy ostatnie rekomendacje
     lastSession = session;

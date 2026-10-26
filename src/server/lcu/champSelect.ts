@@ -16,6 +16,8 @@ export interface LcuPlayer {
   championPickIntent?: number;
   assignedPosition: string; // "top" | "jungle" | "middle" | "bottom" | "utility" | "" (blind pick)
   team?: number; // 1 = niebieska strona, 2 = czerwona
+  spell1Id?: number; // czary wybrane obecnie przez gracza (D / F)
+  spell2Id?: number;
 }
 
 export interface LcuAction {

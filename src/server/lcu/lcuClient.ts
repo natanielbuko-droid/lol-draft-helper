@@ -14,7 +14,20 @@ export interface DraftSource extends EventEmitter {
   stop(): void;
   getPickableChampionIds(): Promise<number[]>;
   applyRunePage(page: { name: string; primaryStyleId: number; subStyleId: number; selectedPerkIds: number[] }): Promise<void>;
+  /** Ustawia czary przywoływacza w trwającym champ selekcie. */
+  applySummonerSpells(spell1Id: number, spell2Id: number): Promise<void>;
+  /** Zapisuje zestaw przedmiotów widoczny w sklepie w grze (zastępuje poprzedni zestaw tej aplikacji). */
+  applyItemSet(set: ItemSetInput): Promise<void>;
 }
+
+export interface ItemSetInput {
+  title: string;
+  championId: number;
+  blocks: { type: string; items: string[] }[];
+}
+
+/** Prefiks nazw stron run i zestawów przedmiotów tworzonych przez aplikację – tylko takie nadpisujemy. */
+export const OWN_PREFIX = "DraftHelper";
 
 // Klient używa certyfikatu podpisanego przez Riot, którego Node nie zna.
 // Wyłączamy weryfikację TYLKO dla połączeń z 127.0.0.1 (ruch nie opuszcza komputera).
@@ -149,8 +162,43 @@ export class LcuClient extends EventEmitter implements DraftSource {
    */
   async applyRunePage(page: { name: string; primaryStyleId: number; subStyleId: number; selectedPerkIds: number[] }) {
     const pages = await this.request<{ id: number; name: string; isDeletable: boolean }[]>("GET", "/lol-perks/v1/pages");
-    const own = pages.find((p) => p.name === page.name && p.isDeletable);
+    // Usuwamy WYŁĄCZNIE wcześniejszą stronę tej aplikacji (nazwa zaczyna się od "DraftHelper").
+    const own = pages.find((p) => p.name.startsWith(OWN_PREFIX) && p.isDeletable);
     if (own) await this.request("DELETE", `/lol-perks/v1/pages/${own.id}`);
-    await this.request("POST", "/lol-perks/v1/pages", { ...page, current: true });
+    try {
+      await this.request("POST", "/lol-perks/v1/pages", { ...page, current: true });
+    } catch (err) {
+      if (/max|limit|full/i.test((err as Error).message)) {
+        throw new Error("Brak wolnego miejsca na stronę run – usuń jedną stronę w kliencie (aplikacja nie kasuje Twoich stron).");
+      }
+      throw err;
+    }
+  }
+
+  async applySummonerSpells(spell1Id: number, spell2Id: number): Promise<void> {
+    await this.request("PATCH", "/lol-champ-select/v1/session/my-selection", { spell1Id, spell2Id });
+  }
+
+  async applyItemSet(set: ItemSetInput): Promise<void> {
+    const me = await this.request<{ summonerId: number }>("GET", "/lol-summoner/v1/current-summoner");
+    const path = `/lol-item-sets/v1/item-sets/${me.summonerId}/sets`;
+    const current = await this.request<{ accountId: number; itemSets: { title: string }[] }>("GET", path);
+    const newSet = {
+      title: set.title,
+      type: "custom",
+      map: "any",
+      mode: "any",
+      priority: false,
+      sortrank: 0,
+      startedFrom: "blank",
+      preferredItemSlots: [],
+      associatedChampions: [set.championId],
+      associatedMaps: [11],
+      uid: `draft-helper-${set.championId}`,
+      blocks: set.blocks.map((b) => ({ type: b.type, items: b.items.map((id) => ({ id, count: 1 })) })),
+    };
+    // Zostawiamy zestawy gracza, zastępujemy tylko poprzedni zestaw tej aplikacji.
+    const others = (current.itemSets ?? []).filter((s) => !s.title.startsWith(OWN_PREFIX));
+    await this.request("PUT", path, { accountId: current.accountId, itemSets: [...others, newSet], timestamp: Date.now() });
   }
 }
